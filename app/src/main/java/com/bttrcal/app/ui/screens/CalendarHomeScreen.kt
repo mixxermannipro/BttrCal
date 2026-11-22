@@ -2,12 +2,7 @@ package com.bttrcal.app.ui.screens
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -38,15 +33,24 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.CloudSync
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material.icons.rounded.Today
 import androidx.compose.material.icons.rounded.Widgets
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -54,20 +58,26 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.bttrcal.app.domain.model.AiProviderType
 import com.bttrcal.app.domain.model.AppTab
 import com.bttrcal.app.domain.model.CalendarViewMode
+import com.bttrcal.app.domain.model.EventOccurrence
+import com.bttrcal.app.domain.model.ParsedEventDraft
 import com.bttrcal.app.ui.MainViewModel
+import com.bttrcal.app.ui.OverlayScreen
 import com.bttrcal.app.ui.theme.LiquidGlassBackdrop
 import com.bttrcal.app.ui.theme.LiquidGlassSurface
 import com.bttrcal.app.ui.theme.LocalBttrPalette
@@ -77,7 +87,11 @@ import com.bttrcal.app.ui.views.MonthAgendaItemCard
 import com.bttrcal.app.ui.views.MonthView
 import com.bttrcal.app.ui.views.TimeGridView
 import com.bttrcal.app.ui.views.YearView
+import java.time.DayOfWeek
+import java.time.Instant
 import java.time.LocalDate
+import java.time.YearMonth
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -94,11 +108,14 @@ fun BttrCalAppRoot(viewModel: MainViewModel) {
     val isSyncing by viewModel.isSyncing.collectAsStateWithLifecycle()
 
     val selectedTab by viewModel.selectedTab.collectAsStateWithLifecycle()
+    val overlayScreen by viewModel.overlayScreen.collectAsStateWithLifecycle()
     val viewMode by viewModel.viewMode.collectAsStateWithLifecycle()
     val selectedDate by viewModel.selectedDate.collectAsStateWithLifecycle()
     val visibleMonth by viewModel.visibleMonth.collectAsStateWithLifecycle()
     val searchActive by viewModel.searchActive.collectAsStateWithLifecycle()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
+    val searchAiDraft by viewModel.searchAiDraft.collectAsStateWithLifecycle()
+    val isRefiningSearchAi by viewModel.isRefiningSearchAi.collectAsStateWithLifecycle()
 
     val detailOcc by viewModel.detailOccurrence.collectAsStateWithLifecycle()
     val editorState by viewModel.editorState.collectAsStateWithLifecycle()
@@ -114,6 +131,9 @@ fun BttrCalAppRoot(viewModel: MainViewModel) {
         }
     }
 
+    val byokActive = settings.aiConfig.enabled &&
+        (settings.aiConfig.hasStoredKey || settings.aiConfig.provider == AiProviderType.CUSTOM_OPENAI_COMPATIBLE)
+
     LiquidGlassBackdrop(modifier = Modifier.fillMaxSize()) {
         Box(
             modifier = Modifier
@@ -121,27 +141,63 @@ fun BttrCalAppRoot(viewModel: MainViewModel) {
                 .statusBarsPadding()
         ) {
             AnimatedContent(
-                targetState = selectedTab,
+                targetState = overlayScreen to selectedTab,
                 transitionSpec = {
                     (fadeIn(tween(220)) + scaleIn(initialScale = 0.985f, animationSpec = tween(220)))
-                        .togetherWith(fadeOut(tween(160)))
+                        .togetherWith(fadeOut(tween(150)))
                 },
-                label = "main_tab_transition"
-            ) { tab ->
-                when (tab) {
-                    AppTab.CALENDAR -> {
-                        CalendarTabContent(
+                label = "root_screen_transition"
+            ) { (overlay, tab) ->
+                when (overlay) {
+                    OverlayScreen.WIDGETS -> WidgetStudioScreen(
+                        widgetStyle = settings.widgetStyle,
+                        dataRevision = dataRevision,
+                        onBack = { viewModel.closeOverlayScreen() },
+                        loadOccurrences = { s, e -> viewModel.getOccurrencesForRange(s, e) },
+                        onUpdateWidgetStyle = { viewModel.updateWidgetStyle(it) },
+                        onStatusMessage = { viewModel.showStatus(it) }
+                    )
+                    OverlayScreen.SETTINGS -> SettingsScreen(
+                        settings = settings,
+                        aiState = aiState,
+                        onBack = { viewModel.closeOverlayScreen() },
+                        onSetThemeMode = { viewModel.setThemeMode(it) },
+                        onSetFirstDayOfWeek = { viewModel.setFirstDayOfWeek(it) },
+                        onSetShowWeekNumbers = { viewModel.setShowWeekNumbers(it) },
+                        onSetDefaultDuration = { viewModel.setDefaultDurationMinutes(it) },
+                        onSetDefaultReminder = { viewModel.setDefaultReminderMinutes(it) },
+                        onSaveAiConfig = { p, m, u, en, k -> viewModel.updateAiProviderSettings(p, m, u, en, k) },
+                        onTestAiConnection = { p, m, u, k -> viewModel.testAiConnection(p, m, u, k) }
+                    )
+                    OverlayScreen.NONE -> when (tab) {
+                        AppTab.CALENDAR -> CalendarTabContent(
                             viewMode = viewMode,
                             selectedDate = selectedDate,
                             visibleMonth = visibleMonth,
                             searchActive = searchActive,
                             searchQuery = searchQuery,
-                            isSyncing = isSyncing,
+                            searchAiDraft = searchAiDraft,
+                            isRefiningSearchAi = isRefiningSearchAi,
+                            byokActive = byokActive,
                             firstDayOfWeek = settings.firstDayOfWeek,
                             showWeekNumbers = settings.showWeekNumbers,
                             dataRevision = dataRevision,
                             loadOccurrences = { s, e -> viewModel.getOccurrencesForRange(s, e) },
                             searchEvents = { q -> viewModel.searchEvents(q) },
+                            parseSearchLocally = { q -> viewModel.parseSearchLocally(q) },
+                            onRefineSearchWithAi = { q -> viewModel.refineSearchWithAi(q) },
+                            onSaveParsedFromSearch = { draft ->
+                                viewModel.saveDraftDirectly(draft)
+                                val targetDate = Instant.ofEpochMilli(draft.startMillis)
+                                    .atZone(ZoneId.systemDefault())
+                                    .toLocalDate()
+                                viewModel.selectDate(targetDate)
+                                viewModel.toggleSearch(false)
+                            },
+                            onPrefillEditorFromSearch = { draft ->
+                                viewModel.toggleSearch(false)
+                                viewModel.openEditorFromDraft(draft)
+                            },
                             onViewModeChanged = { viewModel.setViewMode(it) },
                             onSelectDate = { viewModel.selectDate(it) },
                             onVisibleMonthChanged = { viewModel.setVisibleMonth(it) },
@@ -149,13 +205,12 @@ fun BttrCalAppRoot(viewModel: MainViewModel) {
                             onToggleSearch = { viewModel.toggleSearch(it) },
                             onSearchQueryChanged = { viewModel.setSearchQuery(it) },
                             onTriggerSync = { viewModel.triggerSyncNow() },
+                            onOpenWidgets = { viewModel.openWidgetsScreen() },
+                            onOpenSettings = { viewModel.openSettingsScreen() },
                             onEventClick = { viewModel.openEventDetail(it) },
-                            onCreateAtDate = { d, h -> viewModel.openNewEventEditor(d, h) },
-                            onOpenQuickAdd = { viewModel.openQuickAdd() }
+                            onCreateAtDate = { d, h -> viewModel.openNewEventEditor(d, h) }
                         )
-                    }
-                    AppTab.AI -> {
-                        AiAssistantScreen(
+                        AppTab.AI -> AiAssistantScreen(
                             aiConfig = settings.aiConfig,
                             aiState = aiState,
                             onQuickInputChanged = { viewModel.updateAiQuickInput(it) },
@@ -170,18 +225,16 @@ fun BttrCalAppRoot(viewModel: MainViewModel) {
                             onFindSlots = { viewModel.findSmartSlots() },
                             onBookSlot = { slot ->
                                 viewModel.openEditorFromDraft(
-                                    com.bttrcal.app.domain.model.ParsedEventDraft(
+                                    ParsedEventDraft(
                                         title = aiState.slotGoal.ifBlank { "Fokuszeit" },
                                         startMillis = slot.startMillis,
                                         endMillis = slot.endMillis
                                     )
                                 )
                             },
-                            onOpenAiSettings = { viewModel.selectTab(AppTab.SETTINGS) }
+                            onOpenAiSettings = { viewModel.openSettingsScreen() }
                         )
-                    }
-                    AppTab.SYNC -> {
-                        SyncCenterScreen(
+                        AppTab.SYNC -> SyncCenterScreen(
                             settings = settings,
                             isSyncing = isSyncing,
                             accounts = accounts,
@@ -202,86 +255,71 @@ fun BttrCalAppRoot(viewModel: MainViewModel) {
                             onExportCalendarIcs = { calId, calName -> viewModel.shareCalendarIcs(context, calId, calName) }
                         )
                     }
-                    AppTab.WIDGETS -> {
-                        WidgetStudioScreen(
-                            widgetStyle = settings.widgetStyle,
-                            dataRevision = dataRevision,
-                            loadOccurrences = { s, e -> viewModel.getOccurrencesForRange(s, e) },
-                            onUpdateWidgetStyle = { viewModel.updateWidgetStyle(it) },
-                            onStatusMessage = { viewModel.showStatus(it) }
-                        )
-                    }
-                    AppTab.SETTINGS -> {
-                        SettingsScreen(
-                            settings = settings,
-                            aiState = aiState,
-                            onSetThemeMode = { viewModel.setThemeMode(it) },
-                            onSetGlassVariant = { viewModel.setGlassVariant(it) },
-                            onSetFirstDayOfWeek = { viewModel.setFirstDayOfWeek(it) },
-                            onSetShowWeekNumbers = { viewModel.setShowWeekNumbers(it) },
-                            onSetDefaultDuration = { viewModel.setDefaultDurationMinutes(it) },
-                            onSetDefaultReminder = { viewModel.setDefaultReminderMinutes(it) },
-                            onSaveAiConfig = { p, m, u, en, k -> viewModel.updateAiProviderSettings(p, m, u, en, k) },
-                            onTestAiConnection = { p, m, u, k -> viewModel.testAiConnection(p, m, u, k) }
-                        )
-                    }
                 }
             }
 
-            // Floating iOS-26 Style Liquid Glass Bottom Dock + Circular + Button
-            Column(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .navigationBarsPadding()
-                    .padding(horizontal = 14.dp, vertical = 10.dp)
-            ) {
-                SnackbarHost(hostState = snackbarHostState)
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
+            // Floating iOS-26 / Honor Style Bottom Dock + Dedicated Circular + Button
+            if (overlayScreen == OverlayScreen.NONE) {
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .navigationBarsPadding()
+                        .padding(horizontal = 16.dp, vertical = 10.dp)
                 ) {
-                    FloatingLiquidNavBar(
-                        selectedTab = selectedTab,
-                        onSelectTab = { viewModel.selectTab(it) },
-                        modifier = Modifier.weight(1f)
-                    )
+                    SnackbarHost(hostState = snackbarHostState)
 
-                    AnimatedVisibility(
-                        visible = selectedTab == AppTab.CALENDAR,
-                        enter = fadeIn(spring(stiffness = Spring.StiffnessMediumLow)) + scaleIn(initialScale = 0.8f),
-                        exit = fadeOut(tween(140)) + scaleOut(targetScale = 0.8f)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row {
-                            Spacer(modifier = Modifier.width(10.dp))
-                            LiquidGlassSurface(
-                                modifier = Modifier.size(56.dp),
-                                cornerRadius = 28.dp,
-                                elevated = true,
-                                onClick = { viewModel.openNewEventEditor() }
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .background(palette.accent.copy(alpha = 0.14f)),
-                                    contentAlignment = Alignment.Center
+                        FloatingLiquidNavBar(
+                            selectedTab = selectedTab,
+                            onSelectTab = { viewModel.selectTab(it) },
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        AnimatedVisibility(
+                            visible = selectedTab == AppTab.CALENDAR,
+                            enter = fadeIn(spring(stiffness = Spring.StiffnessMediumLow)) + scaleIn(initialScale = 0.85f),
+                            exit = fadeOut(tween(140)) + scaleOut(targetScale = 0.85f)
+                        ) {
+                            Row {
+                                Spacer(modifier = Modifier.width(12.dp))
+                                LiquidGlassSurface(
+                                    modifier = Modifier.size(56.dp),
+                                    cornerRadius = 28.dp,
+                                    elevated = true,
+                                    onClick = { viewModel.openNewEventEditor() }
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.Add,
-                                        contentDescription = "Neuer Termin",
-                                        tint = palette.accent,
-                                        modifier = Modifier.size(26.dp)
-                                    )
+                                    Box(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Add,
+                                            contentDescription = "Neuer Termin",
+                                            tint = palette.textPrimary,
+                                            modifier = Modifier.size(26.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
                 }
+            } else {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .navigationBarsPadding()
+                        .padding(16.dp)
+                ) {
+                    SnackbarHost(hostState = snackbarHostState)
+                }
             }
         }
     }
 
-    // Event detail modal
     detailOcc?.let { occ ->
         val cal = calendars.firstOrNull { it.id == occ.event.calendarId }
         EventDetailSheet(
@@ -295,7 +333,6 @@ fun BttrCalAppRoot(viewModel: MainViewModel) {
         )
     }
 
-    // Event editor modal
     if (editorState.isOpen) {
         EventEditorSheet(
             editorState = editorState,
@@ -306,7 +343,6 @@ fun BttrCalAppRoot(viewModel: MainViewModel) {
         )
     }
 
-    // Smart Quick-Add modal
     if (quickAddOpen) {
         QuickAddSheet(
             aiState = aiState,
@@ -323,48 +359,48 @@ fun BttrCalAppRoot(viewModel: MainViewModel) {
 private fun CalendarTabContent(
     viewMode: CalendarViewMode,
     selectedDate: LocalDate,
-    visibleMonth: java.time.YearMonth,
+    visibleMonth: YearMonth,
     searchActive: Boolean,
     searchQuery: String,
-    isSyncing: Boolean,
-    firstDayOfWeek: java.time.DayOfWeek,
+    searchAiDraft: ParsedEventDraft?,
+    isRefiningSearchAi: Boolean,
+    byokActive: Boolean,
+    firstDayOfWeek: DayOfWeek,
     showWeekNumbers: Boolean,
     dataRevision: Long,
-    loadOccurrences: (Long, Long) -> List<com.bttrcal.app.domain.model.EventOccurrence>,
-    searchEvents: (String) -> List<com.bttrcal.app.domain.model.EventOccurrence>,
+    loadOccurrences: (Long, Long) -> List<EventOccurrence>,
+    searchEvents: (String) -> List<EventOccurrence>,
+    parseSearchLocally: (String) -> ParsedEventDraft,
+    onRefineSearchWithAi: (String) -> Unit,
+    onSaveParsedFromSearch: (ParsedEventDraft) -> Unit,
+    onPrefillEditorFromSearch: (ParsedEventDraft) -> Unit,
     onViewModeChanged: (CalendarViewMode) -> Unit,
     onSelectDate: (LocalDate) -> Unit,
-    onVisibleMonthChanged: (java.time.YearMonth) -> Unit,
+    onVisibleMonthChanged: (YearMonth) -> Unit,
     onJumpToday: () -> Unit,
     onToggleSearch: (Boolean) -> Unit,
     onSearchQueryChanged: (String) -> Unit,
     onTriggerSync: () -> Unit,
-    onEventClick: (com.bttrcal.app.domain.model.EventOccurrence) -> Unit,
-    onCreateAtDate: (LocalDate, Int?) -> Unit,
-    onOpenQuickAdd: () -> Unit
+    onOpenWidgets: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onEventClick: (EventOccurrence) -> Unit,
+    onCreateAtDate: (LocalDate, Int?) -> Unit
 ) {
     val palette = LocalBttrPalette.current
-    val monthFmt = remember { DateTimeFormatter.ofPattern("MMMM yyyy", Locale.GERMAN) }
+    val monthFmt = remember { DateTimeFormatter.ofPattern("MMM yyyy", Locale.GERMAN) }
     val titleText = if (viewMode == CalendarViewMode.YEAR) {
         visibleMonth.year.toString()
     } else {
         visibleMonth.atDay(1).format(monthFmt).replaceFirstChar { it.titlecase(Locale.GERMAN) }
     }
-
-    val spinInf = rememberInfiniteTransition(label = "hdr_sync_spin")
-    val spinAngle by spinInf.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(tween(900, easing = LinearEasing), RepeatMode.Restart),
-        label = "hdr_angle"
-    )
+    var menuExpanded by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // Apple-like Top Header
+        // Minimalist Header (Month/Year + 2 circular frosted icons)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
@@ -380,66 +416,83 @@ private fun CalendarTabContent(
             )
 
             LiquidGlassSurface(
-                cornerRadius = 14.dp,
-                padding = PaddingValues(horizontal = 10.dp, vertical = 7.dp),
-                onClick = onJumpToday
+                modifier = Modifier.size(40.dp),
+                cornerRadius = 20.dp,
+                elevated = true,
+                onClick = { onToggleSearch(!searchActive) }
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Rounded.Today, contentDescription = "Heute", tint = Color(0xFFFF453A), modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Heute", style = MaterialTheme.typography.labelMedium, color = palette.textPrimary)
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = if (searchActive) Icons.Rounded.Close else Icons.Rounded.Search,
+                        contentDescription = "Suche & Schnell-Eingabe",
+                        tint = palette.textPrimary,
+                        modifier = Modifier.size(20.dp)
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.width(6.dp))
+            Spacer(modifier = Modifier.width(8.dp))
 
-            LiquidGlassSurface(
-                cornerRadius = 14.dp,
-                padding = PaddingValues(8.dp),
-                onClick = onOpenQuickAdd
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.AutoAwesome,
-                    contentDescription = "Smart Quick-Add",
-                    tint = palette.accent,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
+            Box {
+                LiquidGlassSurface(
+                    modifier = Modifier.size(40.dp),
+                    cornerRadius = 20.dp,
+                    elevated = true,
+                    onClick = { menuExpanded = true }
+                ) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Rounded.MoreVert,
+                            contentDescription = "Menü",
+                            tint = palette.textPrimary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
 
-            Spacer(modifier = Modifier.width(6.dp))
-
-            LiquidGlassSurface(
-                cornerRadius = 14.dp,
-                padding = PaddingValues(8.dp),
-                onClick = onTriggerSync
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Sync,
-                    contentDescription = "Sync",
-                    tint = if (isSyncing) palette.accent else palette.textSecondary,
-                    modifier = Modifier
-                        .size(18.dp)
-                        .graphicsLayer { rotationZ = if (isSyncing) spinAngle else 0f }
-                )
-            }
-
-            Spacer(modifier = Modifier.width(6.dp))
-
-            LiquidGlassSurface(
-                cornerRadius = 14.dp,
-                padding = PaddingValues(8.dp),
-                onClick = { onToggleSearch(!searchActive) }
-            ) {
-                Icon(
-                    imageVector = if (searchActive) Icons.Rounded.Close else Icons.Rounded.Search,
-                    contentDescription = "Suche",
-                    tint = palette.textSecondary,
-                    modifier = Modifier.size(18.dp)
-                )
+                DropdownMenu(
+                    expanded = menuExpanded,
+                    onDismissRequest = { menuExpanded = false },
+                    shape = RoundedCornerShape(22.dp),
+                    containerColor = palette.surfaceElevated
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Heute", color = palette.textPrimary) },
+                        leadingIcon = { Icon(Icons.Rounded.Today, contentDescription = null, tint = palette.accent) },
+                        onClick = {
+                            menuExpanded = false
+                            onJumpToday()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Jetzt synchronisieren", color = palette.textPrimary) },
+                        leadingIcon = { Icon(Icons.Rounded.Sync, contentDescription = null, tint = palette.textPrimary) },
+                        onClick = {
+                            menuExpanded = false
+                            onTriggerSync()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Widgets & Vorschau", color = palette.textPrimary) },
+                        leadingIcon = { Icon(Icons.Rounded.Widgets, contentDescription = null, tint = palette.textPrimary) },
+                        onClick = {
+                            menuExpanded = false
+                            onOpenWidgets()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Einstellungen", color = palette.textPrimary) },
+                        leadingIcon = { Icon(Icons.Rounded.Settings, contentDescription = null, tint = palette.textPrimary) },
+                        onClick = {
+                            menuExpanded = false
+                            onOpenSettings()
+                        }
+                    )
+                }
             }
         }
 
-        // Animated Search Bar & Results
+        // Smart Dual-Purpose Search & Instant Natural-Language Entry
         AnimatedVisibility(visible = searchActive) {
             Column(
                 modifier = Modifier
@@ -449,8 +502,12 @@ private fun CalendarTabContent(
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = onSearchQueryChanged,
-                    placeholder = { Text("Termine, Orte oder Notizen durchsuchen...") },
-                    singleLine = true,
+                    placeholder = { Text("Suchen oder eingeben: z. B. Pokern am 23. Nov 17 Uhr") },
+                    leadingIcon = {
+                        Icon(Icons.Rounded.Search, contentDescription = null, tint = palette.textSecondary)
+                    },
+                    singleLine = false,
+                    maxLines = 3,
                     shape = RoundedCornerShape(18.dp),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -458,77 +515,182 @@ private fun CalendarTabContent(
         }
 
         if (searchActive && searchQuery.isNotBlank()) {
+            val activeDraft = searchAiDraft ?: remember(searchQuery) { parseSearchLocally(searchQuery) }
             val results = remember(searchQuery, dataRevision) { searchEvents(searchQuery) }
+            val zone = remember { ZoneId.systemDefault() }
+            val dtFmt = remember { DateTimeFormatter.ofPattern("EEE, d. MMM yyyy · HH:mm", Locale.GERMAN) }
+            val endFmt = remember { DateTimeFormatter.ofPattern("HH:mm", Locale.GERMAN) }
+
+            val startZdt = Instant.ofEpochMilli(activeDraft.startMillis).atZone(zone)
+            val endZdt = Instant.ofEpochMilli(activeDraft.endMillis).atZone(zone)
+
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 108.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                if (results.isEmpty()) {
+                item(key = "smart_parsed_card") {
+                    LiquidGlassSurface(
+                        modifier = Modifier.fillMaxWidth(),
+                        cornerRadius = 22.dp,
+                        elevated = true,
+                        padding = PaddingValues(14.dp)
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.AutoAwesome,
+                                    contentDescription = null,
+                                    tint = palette.accent,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = if (activeDraft.usedAi) "Per BYOK-KI erkannt" else "Lokal erkannt · Direkt eintragen",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = palette.accent,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                if (byokActive) {
+                                    LiquidGlassSurface(
+                                        cornerRadius = 12.dp,
+                                        padding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                        onClick = { onRefineSearchWithAi(searchQuery) }
+                                    ) {
+                                        if (isRefiningSearchAi) {
+                                            CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+                                        } else {
+                                            Text("KI verfeinern", style = MaterialTheme.typography.labelSmall, color = palette.textPrimary)
+                                        }
+                                    }
+                                }
+                            }
+
+                            Text(
+                                text = activeDraft.title,
+                                style = MaterialTheme.typography.titleLarge,
+                                color = palette.textPrimary
+                            )
+                            Text(
+                                text = if (activeDraft.allDay) {
+                                    "${startZdt.toLocalDate()} · Ganztägig"
+                                } else {
+                                    "${startZdt.format(dtFmt)} – ${endZdt.format(endFmt)} Uhr"
+                                },
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = palette.textSecondary
+                            )
+                            if (activeDraft.location.isNotBlank()) {
+                                Text(
+                                    text = "Ort: ${activeDraft.location}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = palette.textSecondary
+                                )
+                            }
+                            if (activeDraft.description.isNotBlank()) {
+                                Text(
+                                    text = "Notiz: ${activeDraft.description}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = palette.textTertiary,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                OutlinedButton(
+                                    onClick = { onPrefillEditorFromSearch(activeDraft) },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(14.dp)
+                                ) {
+                                    Icon(Icons.Rounded.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Vorausfüllen")
+                                }
+                                Button(
+                                    onClick = { onSaveParsedFromSearch(activeDraft) },
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.buttonColors(containerColor = palette.accent),
+                                    shape = RoundedCornerShape(14.dp)
+                                ) {
+                                    Icon(Icons.Rounded.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Eintragen")
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (results.isNotEmpty()) {
                     item {
                         Text(
-                            text = "Keine passenden Termine gefunden.",
-                            style = MaterialTheme.typography.bodyMedium,
+                            text = "Gefundene Termine (${results.size})",
+                            style = MaterialTheme.typography.labelMedium,
                             color = palette.textSecondary,
-                            modifier = Modifier.padding(16.dp)
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
                         )
                     }
-                } else {
                     items(results, key = { "${it.event.id}_srch" }) { occ ->
                         MonthAgendaItemCard(occurrence = occ, onClick = { onEventClick(occ) })
                     }
                 }
             }
         } else {
-            // View mode pill switcher
+            // Minimalist Segmented View Bar (Jahr | Monat | Woche | Tag | Liste)
             val modes = listOf(
-                CalendarViewMode.DAY,
-                CalendarViewMode.THREE_DAY,
-                CalendarViewMode.WEEK,
-                CalendarViewMode.MONTH,
-                CalendarViewMode.AGENDA
+                CalendarViewMode.YEAR to "Jahr",
+                CalendarViewMode.MONTH to "Monat",
+                CalendarViewMode.WEEK to "Woche",
+                CalendarViewMode.DAY to "Tag",
+                CalendarViewMode.AGENDA to "Liste"
             )
             LiquidGlassSurface(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 14.dp)
                     .padding(bottom = 10.dp),
-                cornerRadius = 18.dp,
+                cornerRadius = 22.dp,
                 padding = PaddingValues(4.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    modes.forEach { mode ->
+                    modes.forEach { (mode, label) ->
                         val active = viewMode == mode
                         Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(if (active) palette.accent else Color.Transparent)
+                                .clip(RoundedCornerShape(18.dp))
+                                .background(if (active) palette.surfaceSubtle else Color.Transparent)
                                 .bounceClick(scaleTarget = 0.94f) { onViewModeChanged(mode) }
-                                .padding(vertical = 7.dp),
+                                .padding(vertical = 8.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = mode.shortLabelDe,
+                                text = label,
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
-                                color = if (active) Color.White else palette.textSecondary
+                                color = if (active) palette.textPrimary else palette.textSecondary
                             )
                         }
                     }
                 }
             }
 
-            // Calendar view content with smooth spring transition
             AnimatedContent(
                 targetState = viewMode,
                 transitionSpec = {
                     (fadeIn(spring(stiffness = Spring.StiffnessMediumLow)) +
-                        scaleIn(initialScale = 0.98f, animationSpec = spring(stiffness = Spring.StiffnessMediumLow)))
-                        .togetherWith(fadeOut(tween(140)) + scaleOut(targetScale = 0.98f, animationSpec = tween(140)))
+                        scaleIn(initialScale = 0.985f, animationSpec = spring(stiffness = Spring.StiffnessMediumLow)))
+                        .togetherWith(fadeOut(tween(140)) + scaleOut(targetScale = 0.985f, animationSpec = tween(140)))
                 },
                 label = "calendar_view_mode",
                 modifier = Modifier.weight(1f)
@@ -607,14 +769,10 @@ private fun FloatingLiquidNavBar(
 ) {
     val palette = LocalBttrPalette.current
     LiquidGlassSurface(
-        modifier = modifier
-            .background(
-                color = palette.background.copy(alpha = if (palette.isGlass) 0.65f else 0.94f),
-                shape = RoundedCornerShape(28.dp)
-            ),
+        modifier = modifier,
         cornerRadius = 28.dp,
         elevated = true,
-        padding = PaddingValues(horizontal = 6.dp, vertical = 6.dp)
+        padding = PaddingValues(horizontal = 5.dp, vertical = 5.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -627,16 +785,14 @@ private fun FloatingLiquidNavBar(
                     AppTab.CALENDAR -> Icons.Rounded.CalendarMonth
                     AppTab.AI -> Icons.Rounded.AutoAwesome
                     AppTab.SYNC -> Icons.Rounded.CloudSync
-                    AppTab.WIDGETS -> Icons.Rounded.Widgets
-                    AppTab.SETTINGS -> Icons.Rounded.Settings
                 }
 
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(if (selected) palette.accentSoft else Color.Transparent)
-                        .bounceClick(scaleTarget = 0.92f, haptic = true) { onSelectTab(tab) }
+                        .clip(RoundedCornerShape(23.dp))
+                        .background(if (selected) palette.surfaceSubtle else Color.Transparent)
+                        .bounceClick(scaleTarget = 0.93f, haptic = true) { onSelectTab(tab) }
                         .padding(vertical = 7.dp),
                     contentAlignment = Alignment.Center
                 ) {

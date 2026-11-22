@@ -59,7 +59,7 @@ fun QuickAddSheet(
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = if (palette.isDark) Color(0xFF141925) else Color(0xFFFCFDFE)
+        containerColor = if (palette.isDark) Color(0xFF141416) else Color(0xFFFCFDFE)
     ) {
         Column(
             modifier = Modifier

@@ -5,12 +5,32 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.time.Month
 import java.time.ZoneId
 import java.time.temporal.TemporalAdjusters
 
 object LocalEventParser {
 
-    private val DATE_DMY_REGEX = Regex("""\b(\d{1,2})\.(\d{1,2})\.(?:(\d{2,4}))?\b""")
+    private val MONTH_MAP: Map<String, Month> = mapOf(
+        "januar" to Month.JANUARY, "jan" to Month.JANUARY, "january" to Month.JANUARY,
+        "februar" to Month.FEBRUARY, "feb" to Month.FEBRUARY, "february" to Month.FEBRUARY,
+        "märz" to Month.MARCH, "maerz" to Month.MARCH, "mär" to Month.MARCH, "march" to Month.MARCH, "mar" to Month.MARCH,
+        "april" to Month.APRIL, "apr" to Month.APRIL,
+        "mai" to Month.MAY, "may" to Month.MAY,
+        "juni" to Month.JUNE, "jun" to Month.JUNE, "june" to Month.JUNE,
+        "juli" to Month.JULY, "jul" to Month.JULY, "july" to Month.JULY,
+        "august" to Month.AUGUST, "aug" to Month.AUGUST,
+        "september" to Month.SEPTEMBER, "sept" to Month.SEPTEMBER, "sep" to Month.SEPTEMBER,
+        "oktober" to Month.OCTOBER, "okt" to Month.OCTOBER, "october" to Month.OCTOBER, "oct" to Month.OCTOBER,
+        "november" to Month.NOVEMBER, "nov" to Month.NOVEMBER,
+        "dezember" to Month.DECEMBER, "dez" to Month.DECEMBER, "december" to Month.DECEMBER, "dec" to Month.DECEMBER
+    )
+
+    private val DATE_NAMED_MONTH_REGEX = Regex(
+        """\b(?:am\s+|den\s+)?(\d{1,2})\.?\s*(januar|jan|january|februar|feb|february|märz|maerz|mär|march|mar|april|apr|mai|may|juni|jun|june|juli|jul|july|august|aug|september|sept|sep|oktober|okt|october|oct|november|nov|dezember|dez|december|dec)\.?(?:\s+(\d{4}))?\b""",
+        RegexOption.IGNORE_CASE
+    )
+    private val DATE_DMY_REGEX = Regex("""\b(?:am\s+)?(\d{1,2})\.(\d{1,2})\.(?:(\d{2,4}))?\b""", RegexOption.IGNORE_CASE)
     private val TIME_RANGE_REGEX = Regex("""\b(?:von\s+)?(\d{1,2})(?::(\d{2}))?\s*(?:-|bis|to)\s*(\d{1,2})(?::(\d{2}))?\s*(?:uhr)?\b""", RegexOption.IGNORE_CASE)
     private val TIME_24H_REGEX = Regex("""\b(?:um\s+|at\s+)?(\d{1,2}):(\d{2})\s*(?:uhr)?\b""", RegexOption.IGNORE_CASE)
     private val TIME_UHR_REGEX = Regex("""\b(?:um\s+)?(\d{1,2})\s*uhr\b""", RegexOption.IGNORE_CASE)
@@ -19,6 +39,39 @@ object LocalEventParser {
     private val REMINDER_REGEX = Regex("""\b(?:erinnerung|reminder)\s*(\d{1,3})\s*(min|std|h)\b""", RegexOption.IGNORE_CASE)
     private val LOCATION_REGEX = Regex("""(?:@|ort:|in\s+(?=der\s+|dem\s+|den\s+|[A-ZÄÖÜ]))([^\n,;]+?)(?=\s+(?:um|am|heute|morgen|übermorgen|von|für|erinnerung|täglich|wöchentlich|monatlich|$))""", RegexOption.IGNORE_CASE)
 
+    private val CONVERSATIONAL_PHRASES = listOf(
+        """\bich möchte gerne\b""",
+        """\bich moechte gerne\b""",
+        """\bich möchte gern\b""",
+        """\bich hätte gerne\b""",
+        """\bich haette gerne\b""",
+        """\bich möchte\b""",
+        """\bich will\b""",
+        """\bich brauche\b""",
+        """\bkannst du mir\b""",
+        """\btrag mir(?: bitte)?\b""",
+        """\berstelle(?: mir| bitte)?\b""",
+        """\bplane(?: mir| bitte)?\b""",
+        """\bund zwar\b""",
+        """\beinen termin haben\b""",
+        """\beinen termin eintragen\b""",
+        """\beinen termin erstellen\b""",
+        """\beinen termin\b""",
+        """\btermin haben\b""",
+        """\btermin\b""",
+        """\beintragen\b""",
+        """\berstellen\b""",
+        """\banlegen\b""",
+        """\bbitte\b""",
+        """\bfür einen\b""",
+        """\bfür eine\b""",
+        """\bfür ein\b""",
+        """\bzum\b""",
+        """\bzur\b""",
+        """\büber\b""",
+        """\bhab(?:e)?n?\b"""
+    ).map { Regex(it, RegexOption.IGNORE_CASE) }
+
     fun parse(
         input: String,
         now: LocalDateTime = LocalDateTime.now(),
@@ -26,7 +79,8 @@ object LocalEventParser {
         defaultDurationMinutes: Int = 60,
         defaultReminderMinutes: Int = 15
     ): ParsedEventDraft {
-        var working = input.trim()
+        val originalInput = input.trim()
+        var working = originalInput
         val lower = working.lowercase()
 
         var targetDate = now.toLocalDate()
@@ -80,6 +134,30 @@ object LocalEventParser {
             }
         }
 
+        // 1. Named month dates like "23. November" or "am 23. Nov 2026"
+        if (!dateDetected) {
+            val namedMatch = DATE_NAMED_MONTH_REGEX.find(working)
+            if (namedMatch != null) {
+                val day = namedMatch.groupValues[1].toIntOrNull()?.coerceIn(1, 31) ?: now.dayOfMonth
+                val monthName = namedMatch.groupValues[2].lowercase()
+                val month = MONTH_MAP[monthName]
+                val rawYear = namedMatch.groupValues[3]
+                if (month != null) {
+                    val year = rawYear.toIntOrNull() ?: now.year
+                    runCatching { LocalDate.of(year, month, day) }.getOrNull()?.let { candidate ->
+                        targetDate = if (rawYear.isBlank() && candidate.isBefore(now.toLocalDate())) {
+                            candidate.plusYears(1)
+                        } else {
+                            candidate
+                        }
+                        dateDetected = true
+                    }
+                    working = working.removeRange(namedMatch.range)
+                }
+            }
+        }
+
+        // 2. Numeric DD.MM.(YYYY)
         if (!dateDetected) {
             val dmyMatch = DATE_DMY_REGEX.find(working)
             if (dmyMatch != null) {
@@ -99,6 +177,7 @@ object LocalEventParser {
             }
         }
 
+        // 3. Weekday names
         if (!dateDetected) {
             for ((word, dow) in weekdayMap) {
                 val regex = Regex("""\b(?:am\s+|nächsten\s+|jeden\s+|on\s+|next\s+)?$word\b""", RegexOption.IGNORE_CASE)
@@ -186,13 +265,24 @@ object LocalEventParser {
             working = working.removeRange(locMatch.range)
         }
 
+        // Strip conversational German filler words while keeping meaningful title
+        var strippedConversational = false
+        for (phraseRegex in CONVERSATIONAL_PHRASES) {
+            if (phraseRegex.containsMatchIn(working)) {
+                strippedConversational = true
+                working = working.replace(phraseRegex, " ")
+            }
+        }
+
         val cleanedTitle = working
-            .replace(Regex("""\b(am|um|at|on|mit)\s*$""", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("""^(?:am|um|at|on|mit|den|der|die|das|und)\s+""", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("""\s+(?:am|um|at|on|mit)$""", RegexOption.IGNORE_CASE), "")
             .replace(Regex("""\s{2,}"""), " ")
             .trim()
-            .trim('-', ',', ';')
+            .trim('-', ',', ';', '.')
             .trim()
-            .ifBlank { input.trim() }
+            .ifBlank { originalInput }
+            .replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
 
         val resolvedStart = if (allDay) {
             targetDate.atStartOfDay(zoneId).toInstant().toEpochMilli()
@@ -214,13 +304,19 @@ object LocalEventParser {
             resolvedStart + durationMinutes * 60_000L
         }
 
+        val description = if (strippedConversational && cleanedTitle != originalInput) {
+            originalInput
+        } else {
+            ""
+        }
+
         return ParsedEventDraft(
             title = cleanedTitle,
             startMillis = resolvedStart,
             endMillis = resolvedEnd,
             allDay = allDay,
             location = location,
-            description = "",
+            description = description,
             rrule = rrule,
             reminderMinutes = listOf(reminderMins),
             confidenceNote = "Lokal auf dem Gerät erkannt",

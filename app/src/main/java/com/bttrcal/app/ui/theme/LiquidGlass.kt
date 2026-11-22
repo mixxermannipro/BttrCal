@@ -1,15 +1,9 @@
 package com.bttrcal.app.ui.theme
 
-import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -49,7 +43,7 @@ fun Modifier.bounceClick(
     val scale by animateFloatAsState(
         targetValue = if (pressed && enabled) scaleTarget else 1f,
         animationSpec = spring(
-            dampingRatio = 0.65f,
+            dampingRatio = 0.68f,
             stiffness = Spring.StiffnessMedium
         ),
         label = "bounce_scale"
@@ -77,83 +71,20 @@ fun LiquidGlassBackdrop(
     content: @Composable BoxScope.() -> Unit
 ) {
     val palette = LocalBttrPalette.current
-
-    Box(modifier = modifier.background(palette.background)) {
-        if (palette.isGlass) {
-            val transition = rememberInfiniteTransition(label = "glass_ambient")
-            val drift by transition.animateFloat(
-                initialValue = 0f,
-                targetValue = 1f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(durationMillis = 16000),
-                    repeatMode = RepeatMode.Reverse
-                ),
-                label = "mesh_drift"
+    Box(
+        modifier = modifier.background(
+            brush = Brush.verticalGradient(
+                colors = listOf(palette.meshStart, palette.meshMid, palette.meshEnd)
             )
-
-            Canvas(modifier = Modifier.matchParentSize()) {
-                drawRect(
-                    brush = Brush.linearGradient(
-                        colors = listOf(palette.meshStart, palette.meshMid, palette.meshEnd),
-                        start = Offset.Zero,
-                        end = Offset(size.width, size.height)
-                    )
-                )
-
-                val orb1Center = Offset(
-                    x = size.width * (0.22f + 0.14f * drift),
-                    y = size.height * (0.14f + 0.06f * drift)
-                )
-                val orb2Center = Offset(
-                    x = size.width * (0.82f - 0.16f * drift),
-                    y = size.height * (0.48f + 0.08f * drift)
-                )
-                val orb3Center = Offset(
-                    x = size.width * (0.35f + 0.15f * drift),
-                    y = size.height * 0.88f
-                )
-
-                val orb1Color = if (palette.isDark) Color(0x360A84FF) else Color(0x4270B5FF)
-                val orb2Color = if (palette.isDark) Color(0x305E5CE6) else Color(0x38BA9CFF)
-                val orb3Color = if (palette.isDark) Color(0x2830B0C7) else Color(0x387CE8F5)
-
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(orb1Color, Color.Transparent),
-                        center = orb1Center,
-                        radius = size.width * 0.65f
-                    ),
-                    center = orb1Center,
-                    radius = size.width * 0.65f
-                )
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(orb2Color, Color.Transparent),
-                        center = orb2Center,
-                        radius = size.width * 0.6f
-                    ),
-                    center = orb2Center,
-                    radius = size.width * 0.6f
-                )
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(orb3Color, Color.Transparent),
-                        center = orb3Center,
-                        radius = size.width * 0.55f
-                    ),
-                    center = orb3Center,
-                    radius = size.width * 0.55f
-                )
-            }
-        }
-        content()
-    }
+        ),
+        content = content
+    )
 }
 
 @Composable
 fun LiquidGlassSurface(
     modifier: Modifier = Modifier,
-    cornerRadius: Dp = 24.dp,
+    cornerRadius: Dp = 22.dp,
     elevated: Boolean = false,
     padding: PaddingValues = PaddingValues(0.dp),
     onClick: (() -> Unit)? = null,
@@ -162,44 +93,47 @@ fun LiquidGlassSurface(
     val palette = LocalBttrPalette.current
     val shape: Shape = RoundedCornerShape(cornerRadius)
 
-    val fillBrush = if (palette.isGlass) {
-        val topAlpha = if (elevated) {
-            if (palette.isDark) 0.78f else 0.94f
-        } else {
-            if (palette.isDark) 0.56f else 0.84f
-        }
-        val bottomAlpha = if (elevated) {
-            if (palette.isDark) 0.66f else 0.86f
-        } else {
-            if (palette.isDark) 0.42f else 0.72f
-        }
-        val base = if (palette.isDark) Color(0xFF1A253A) else Color(0xFFFFFFFF)
+    val fillBrush = if (palette.isDark) {
+        val topColor = if (elevated) Color(0xFF212227) else Color(0xFF17181B)
+        val bottomColor = if (elevated) Color(0xFF17181C) else Color(0xFF121316)
         Brush.linearGradient(
-            colors = listOf(base.copy(alpha = topAlpha), base.copy(alpha = bottomAlpha)),
+            colors = listOf(topColor.copy(alpha = 0.94f), bottomColor.copy(alpha = 0.90f)),
             start = Offset(0f, 0f),
-            end = Offset(500f, 600f)
+            end = Offset(450f, 650f)
         )
     } else {
-        val solid = if (elevated) palette.surfaceElevated else palette.surface
-        Brush.verticalGradient(listOf(solid, solid))
+        val topColor = if (elevated) Color(0xFAFFFFFF) else Color(0xF5FFFFFF)
+        val bottomColor = if (elevated) Color(0xEEF7F8FC) else Color(0xF0FFFFFF)
+        Brush.linearGradient(
+            colors = listOf(topColor, bottomColor),
+            start = Offset(0f, 0f),
+            end = Offset(450f, 650f)
+        )
     }
 
-    val borderStroke = if (palette.isGlass) {
+    val borderStroke = if (palette.isDark) {
         BorderStroke(
-            width = 1.dp,
+            width = 0.85.dp,
             brush = Brush.linearGradient(
                 colors = listOf(
-                    palette.specularHighlight.copy(alpha = if (palette.isDark) 0.34f else 0.92f),
-                    palette.border.copy(alpha = if (palette.isDark) 0.12f else 0.45f)
+                    Color(0x36FFFFFF),
+                    Color(0x10FFFFFF)
                 )
             )
         )
     } else {
-        BorderStroke(0.75.dp, palette.border)
+        BorderStroke(
+            width = 0.85.dp,
+            brush = Brush.linearGradient(
+                colors = listOf(
+                    Color(0xFFFFFFFF),
+                    palette.border
+                )
+            )
+        )
     }
 
     val shadowElevation = when {
-        palette.isGlass && !palette.isDark -> 8.dp
         !palette.isDark && elevated -> 6.dp
         !palette.isDark -> 2.dp
         else -> 0.dp
@@ -210,8 +144,8 @@ fun LiquidGlassSurface(
         .shadow(
             elevation = shadowElevation,
             shape = shape,
-            ambientColor = Color(0x1F0F172A),
-            spotColor = Color(0x1A0F172A)
+            ambientColor = Color(0x18000000),
+            spotColor = Color(0x14000000)
         )
         .clip(shape)
         .background(brush = fillBrush, shape = shape)

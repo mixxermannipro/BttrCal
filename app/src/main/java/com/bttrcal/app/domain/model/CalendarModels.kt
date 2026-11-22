@@ -198,7 +198,7 @@ data class ScheduleBriefing(
 
 data class WidgetStyleConfig(
     val themeMode: ThemeMode = ThemeMode.LIQUID_GLASS,
-    val glassVariant: GlassVariant = GlassVariant.LIGHT_GLASS,
+    val glassVariant: GlassVariant = GlassVariant.DARK_GLASS,
     val glassOpacity: Float = 0.78f,
     val showWeekNumbers: Boolean = true,
     val firstDayOfWeek: DayOfWeek = DayOfWeek.MONDAY,
@@ -208,9 +208,7 @@ data class WidgetStyleConfig(
 enum class AppTab(val labelDe: String) {
     CALENDAR("Kalender"),
     AI("KI"),
-    SYNC("Sync"),
-    WIDGETS("Widgets"),
-    SETTINGS("Mehr")
+    SYNC("Konten")
 }
 
 object CalendarColors {
