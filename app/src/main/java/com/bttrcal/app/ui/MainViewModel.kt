@@ -12,6 +12,7 @@ import com.bttrcal.app.MainActivity
 import com.bttrcal.app.data.ai.AiTestResult
 import com.bttrcal.app.data.local.AppSettings
 import com.bttrcal.app.data.sync.SyncScheduler
+import com.bttrcal.app.domain.engine.LocalEventParser
 import com.bttrcal.app.domain.engine.ScheduleAnalyzer
 import com.bttrcal.app.domain.model.AiProviderType
 import com.bttrcal.app.domain.model.AppTab
@@ -40,6 +41,12 @@ import java.time.YearMonth
 import java.time.ZoneId
 import java.time.temporal.TemporalAdjusters
 import java.util.UUID
+
+enum class OverlayScreen {
+    NONE,
+    WIDGETS,
+    SETTINGS
+}
 
 data class EditorState(
     val isOpen: Boolean = false,
@@ -85,6 +92,15 @@ class MainViewModel(private val app: BttrCalApplication) : ViewModel() {
     private val _selectedTab = MutableStateFlow(AppTab.CALENDAR)
     val selectedTab: StateFlow<AppTab> = _selectedTab.asStateFlow()
 
+    private val _overlayScreen = MutableStateFlow(OverlayScreen.NONE)
+    val overlayScreen: StateFlow<OverlayScreen> = _overlayScreen.asStateFlow()
+
+    private val _searchAiDraft = MutableStateFlow<ParsedEventDraft?>(null)
+    val searchAiDraft: StateFlow<ParsedEventDraft?> = _searchAiDraft.asStateFlow()
+
+    private val _isRefiningSearchAi = MutableStateFlow(false)
+    val isRefiningSearchAi: StateFlow<Boolean> = _isRefiningSearchAi.asStateFlow()
+
     private val _viewMode = MutableStateFlow(app.preferences.settings.value.defaultViewMode)
     val viewMode: StateFlow<CalendarViewMode> = _viewMode.asStateFlow()
 
@@ -124,7 +140,20 @@ class MainViewModel(private val app: BttrCalApplication) : ViewModel() {
     }
 
     fun selectTab(tab: AppTab) {
+        _overlayScreen.value = OverlayScreen.NONE
         _selectedTab.value = tab
+    }
+
+    fun openWidgetsScreen() {
+        _overlayScreen.value = OverlayScreen.WIDGETS
+    }
+
+    fun openSettingsScreen() {
+        _overlayScreen.value = OverlayScreen.SETTINGS
+    }
+
+    fun closeOverlayScreen() {
+        _overlayScreen.value = OverlayScreen.NONE
     }
 
     fun setViewMode(mode: CalendarViewMode) {
@@ -149,11 +178,35 @@ class MainViewModel(private val app: BttrCalApplication) : ViewModel() {
 
     fun toggleSearch(active: Boolean) {
         _searchActive.value = active
-        if (!active) _searchQuery.value = ""
+        if (!active) {
+            _searchQuery.value = ""
+            _searchAiDraft.value = null
+        }
     }
 
     fun setSearchQuery(query: String) {
         _searchQuery.value = query
+        _searchAiDraft.value = null
+    }
+
+    fun parseSearchLocally(query: String): ParsedEventDraft =
+        LocalEventParser.parse(
+            input = query,
+            defaultDurationMinutes = settings.value.defaultEventDurationMinutes,
+            defaultReminderMinutes = settings.value.defaultReminderMinutes
+        )
+
+    fun refineSearchWithAi(query: String) {
+        if (query.isBlank()) return
+        viewModelScope.launch {
+            _isRefiningSearchAi.value = true
+            val refined = app.aiService.parseNaturalLanguageEvent(
+                input = query,
+                calendars = calendars.value
+            )
+            _searchAiDraft.value = refined
+            _isRefiningSearchAi.value = false
+        }
     }
 
     fun clearStatusMessage() {

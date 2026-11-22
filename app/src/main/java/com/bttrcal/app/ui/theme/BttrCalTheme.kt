@@ -46,110 +46,66 @@ data class BttrPalette(
 )
 
 val LocalBttrPalette = staticCompositionLocalOf {
-    buildPalette(ThemeMode.LIQUID_GLASS, GlassVariant.LIGHT_GLASS)
+    buildPalette(ThemeMode.DARK, GlassVariant.DARK_GLASS)
 }
 
 fun buildPalette(mode: ThemeMode, glassVariant: GlassVariant): BttrPalette {
-    return when (mode) {
-        ThemeMode.LIGHT -> BttrPalette(
-            themeMode = mode,
-            glassVariant = glassVariant,
-            isDark = false,
-            isGlass = false,
-            background = Color(0xFFF5F6FA),
-            surface = Color(0xFFFFFFFF),
-            surfaceElevated = Color(0xFFFFFFFF),
-            surfaceSubtle = Color(0xFFECEFF5),
-            border = Color(0xFFE2E6EE),
-            specularHighlight = Color(0xFFFFFFFF),
-            textPrimary = Color(0xFF0F172A),
-            textSecondary = Color(0xFF526075),
-            textTertiary = Color(0xFF8C97A8),
-            accent = Color(0xFF0A84FF),
-            accentSoft = Color(0x180A84FF),
-            danger = Color(0xFFFF3B30),
-            success = Color(0xFF34C759),
-            warning = Color(0xFFFF9500),
-            gridLine = Color(0xFFE9EDF4),
-            meshStart = Color(0xFFF5F6FA),
-            meshMid = Color(0xFFF5F6FA),
-            meshEnd = Color(0xFFF5F6FA)
-        )
-        ThemeMode.DARK -> BttrPalette(
-            themeMode = mode,
+    val effectiveDark = when (mode) {
+        ThemeMode.DARK -> true
+        ThemeMode.LIGHT -> false
+        ThemeMode.LIQUID_GLASS -> glassVariant == GlassVariant.DARK_GLASS
+    }
+
+    return if (effectiveDark) {
+        BttrPalette(
+            themeMode = ThemeMode.DARK,
             glassVariant = glassVariant,
             isDark = true,
-            isGlass = false,
-            background = Color(0xFF090B10),
-            surface = Color(0xFF141720),
-            surfaceElevated = Color(0xFF1C202C),
-            surfaceSubtle = Color(0xFF1F2433),
-            border = Color(0xFF282E40),
-            specularHighlight = Color(0x28FFFFFF),
-            textPrimary = Color(0xFFF4F6FA),
-            textSecondary = Color(0xFFA0ABBE),
-            textTertiary = Color(0xFF697489),
-            accent = Color(0xFF0A84FF),
-            accentSoft = Color(0x260A84FF),
+            isGlass = true,
+            background = Color(0xFF000000),
+            surface = Color(0xFF141416),
+            surfaceElevated = Color(0xEC1B1C20),
+            surfaceSubtle = Color(0xFF25262B),
+            border = Color(0x26FFFFFF),
+            specularHighlight = Color(0x42FFFFFF),
+            textPrimary = Color(0xFFF5F6FA),
+            textSecondary = Color(0xFF9EA2AD),
+            textTertiary = Color(0xFF6B6F7B),
+            accent = Color(0xFFFF4F38),
+            accentSoft = Color(0x26FF4F38),
             danger = Color(0xFFFF453A),
             success = Color(0xFF30D158),
             warning = Color(0xFFFF9F0A),
-            gridLine = Color(0xFF1E2331),
-            meshStart = Color(0xFF090B10),
-            meshMid = Color(0xFF090B10),
-            meshEnd = Color(0xFF090B10)
+            gridLine = Color(0xFF222328),
+            meshStart = Color(0xFF000000),
+            meshMid = Color(0xFF040508),
+            meshEnd = Color(0xFF000000)
         )
-        ThemeMode.LIQUID_GLASS -> if (glassVariant == GlassVariant.DARK_GLASS) {
-            BttrPalette(
-                themeMode = mode,
-                glassVariant = glassVariant,
-                isDark = true,
-                isGlass = true,
-                background = Color(0xFF0B111E),
-                surface = Color(0x8C172033),
-                surfaceElevated = Color(0xB31D2840),
-                surfaceSubtle = Color(0x66222F4A),
-                border = Color(0x38FFFFFF),
-                specularHighlight = Color(0x58FFFFFF),
-                textPrimary = Color(0xFFF8FAFF),
-                textSecondary = Color(0xFFB5C2D9),
-                textTertiary = Color(0xFF7B8BA8),
-                accent = Color(0xFF389BFF),
-                accentSoft = Color(0x30389BFF),
-                danger = Color(0xFFFF5247),
-                success = Color(0xFF32D760),
-                warning = Color(0xFFFFA726),
-                gridLine = Color(0x22FFFFFF),
-                meshStart = Color(0xFF0C182E),
-                meshMid = Color(0xFF151936),
-                meshEnd = Color(0xFF0A2230)
-            )
-        } else {
-            BttrPalette(
-                themeMode = mode,
-                glassVariant = glassVariant,
-                isDark = false,
-                isGlass = true,
-                background = Color(0xFFEDF3FC),
-                surface = Color(0xB8FFFFFF),
-                surfaceElevated = Color(0xDEFFFFFF),
-                surfaceSubtle = Color(0x88EBF2FF),
-                border = Color(0xBFFFFFFF),
-                specularHighlight = Color(0xFFFFFFFF),
-                textPrimary = Color(0xFF0D1526),
-                textSecondary = Color(0xFF475670),
-                textTertiary = Color(0xFF7F8EA6),
-                accent = Color(0xFF0A84FF),
-                accentSoft = Color(0x1E0A84FF),
-                danger = Color(0xFFFF3B30),
-                success = Color(0xFF28CD41),
-                warning = Color(0xFFFF9500),
-                gridLine = Color(0x336C85A8),
-                meshStart = Color(0xFFE4EEFF),
-                meshMid = Color(0xFFF3ECFF),
-                meshEnd = Color(0xFFE0F7FA)
-            )
-        }
+    } else {
+        BttrPalette(
+            themeMode = ThemeMode.LIGHT,
+            glassVariant = glassVariant,
+            isDark = false,
+            isGlass = true,
+            background = Color(0xFFF4F5F8),
+            surface = Color(0xFFFFFFFF),
+            surfaceElevated = Color(0xF5FFFFFF),
+            surfaceSubtle = Color(0xFFEBEDF2),
+            border = Color(0xFFE0E4EC),
+            specularHighlight = Color(0xFFFFFFFF),
+            textPrimary = Color(0xFF0E131D),
+            textSecondary = Color(0xFF555D6E),
+            textTertiary = Color(0xFF8C93A4),
+            accent = Color(0xFFFF3B30),
+            accentSoft = Color(0x1AFF3B30),
+            danger = Color(0xFFFF3B30),
+            success = Color(0xFF34C759),
+            warning = Color(0xFFFF9500),
+            gridLine = Color(0xFFE7EAF0),
+            meshStart = Color(0xFFF4F5F8),
+            meshMid = Color(0xFFF7F8FB),
+            meshEnd = Color(0xFFF2F4F8)
+        )
     }
 }
 
@@ -165,7 +121,7 @@ private val BttrTypography = Typography(
         letterSpacing = (-0.3).sp
     ),
     titleMedium = TextStyle(
-        fontSize = 16.sp,
+        fontSize = 15.5.sp,
         fontWeight = FontWeight.SemiBold,
         letterSpacing = (-0.15).sp
     ),
@@ -216,7 +172,7 @@ fun BttrCalTheme(
             onPrimary = Color.White,
             background = animatedPalette.background,
             onBackground = animatedPalette.textPrimary,
-            surface = animatedPalette.surfaceElevated,
+            surface = animatedPalette.surface,
             onSurface = animatedPalette.textPrimary,
             surfaceVariant = animatedPalette.surfaceSubtle,
             onSurfaceVariant = animatedPalette.textSecondary,
@@ -229,7 +185,7 @@ fun BttrCalTheme(
             onPrimary = Color.White,
             background = animatedPalette.background,
             onBackground = animatedPalette.textPrimary,
-            surface = animatedPalette.surfaceElevated,
+            surface = animatedPalette.surface,
             onSurface = animatedPalette.textPrimary,
             surfaceVariant = animatedPalette.surfaceSubtle,
             onSurfaceVariant = animatedPalette.textSecondary,

@@ -2,6 +2,7 @@ package com.bttrcal.app.ui.screens
 
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -20,6 +21,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Widgets
 import androidx.compose.material3.Button
@@ -63,6 +65,7 @@ import java.util.Locale
 fun WidgetStudioScreen(
     widgetStyle: WidgetStyleConfig,
     dataRevision: Long,
+    onBack: () -> Unit,
     loadOccurrences: (Long, Long) -> List<EventOccurrence>,
     onUpdateWidgetStyle: (WidgetStyleConfig) -> Unit,
     onStatusMessage: (String) -> Unit,
@@ -72,6 +75,8 @@ fun WidgetStudioScreen(
     val context = LocalContext.current
     val zone = remember { ZoneId.systemDefault() }
     val today = LocalDate.now(zone)
+
+    BackHandler(onBack = onBack)
 
     val upcoming = remember(dataRevision) {
         val now = System.currentTimeMillis()
@@ -93,20 +98,40 @@ fun WidgetStudioScreen(
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 108.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 40.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         item {
-            Text(
-                text = "Widgets & Vorschau",
-                style = MaterialTheme.typography.headlineMedium,
-                color = palette.textPrimary
-            )
-            Text(
-                text = "Honor-inspirierte Homescreen-Widgets mit Liquid Glass.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = palette.textSecondary
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                LiquidGlassSurface(
+                    cornerRadius = 18.dp,
+                    padding = PaddingValues(9.dp),
+                    onClick = onBack
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                        contentDescription = "Zurück",
+                        tint = palette.textPrimary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text(
+                        text = "Widgets",
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = palette.textPrimary
+                    )
+                    Text(
+                        text = "Liquid Glass, Dunkel oder Hell für deinen Startbildschirm",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = palette.textSecondary
+                    )
+                }
+            }
         }
 
         // Widget style controls

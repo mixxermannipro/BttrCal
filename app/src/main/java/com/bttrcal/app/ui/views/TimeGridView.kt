@@ -247,20 +247,42 @@ fun TimeGridView(
                         .weight(1f)
                         .verticalScroll(verticalScroll)
                 ) {
-                    // Hour labels column
-                    Column(modifier = Modifier.width(TIME_AXIS_WIDTH)) {
-                        for (h in 0 until 24) {
+                    // Hour labels column + current time badge pill
+                    val hasToday = dates.any { it == today }
+                    val nowTimeAxis = remember(hasToday) { LocalTime.now(zone) }
+                    Box(modifier = Modifier.width(TIME_AXIS_WIDTH)) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            for (h in 0 until 24) {
+                                Box(
+                                    modifier = Modifier
+                                        .height(HOUR_HEIGHT)
+                                        .fillMaxWidth(),
+                                    contentAlignment = Alignment.TopCenter
+                                ) {
+                                    Text(
+                                        text = String.format(Locale.GERMAN, "%02d:00", h),
+                                        fontSize = 10.sp,
+                                        color = palette.textTertiary,
+                                        modifier = Modifier.padding(top = 2.dp)
+                                    )
+                                }
+                            }
+                        }
+                        if (hasToday) {
+                            val nowMinutes = nowTimeAxis.hour * 60 + nowTimeAxis.minute
+                            val badgeY = HOUR_HEIGHT * (nowMinutes / 60f) - 9.dp
                             Box(
                                 modifier = Modifier
-                                    .height(HOUR_HEIGHT)
-                                    .fillMaxWidth(),
-                                contentAlignment = Alignment.TopCenter
+                                    .offset(x = 3.dp, y = badgeY.coerceAtLeast(0.dp))
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color(0xFFFF4F38))
+                                    .padding(horizontal = 5.dp, vertical = 1.dp)
                             ) {
                                 Text(
-                                    text = String.format(Locale.GERMAN, "%02d:00", h),
-                                    fontSize = 10.sp,
-                                    color = palette.textTertiary,
-                                    modifier = Modifier.padding(top = 2.dp)
+                                    text = String.format(Locale.GERMAN, "%02d:%02d", nowTimeAxis.hour, nowTimeAxis.minute),
+                                    fontSize = 9.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
                                 )
                             }
                         }

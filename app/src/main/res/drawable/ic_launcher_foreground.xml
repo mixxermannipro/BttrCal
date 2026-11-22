@@ -1,34 +1,59 @@
 <?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Translucent glass calendar card -->
+
+    <!-- Frosted Dark Liquid Glass Tile -->
     <path
-        android:fillColor="#F5FFFFFF"
-        android:pathData="M28,28 L80,28 A8,8 0 0,1 88,36 L88,76 A8,8 0 0,1 80,84 L28,84 A8,8 0 0,1 20,76 L20,36 A8,8 0 0,1 28,28 Z" />
-    <!-- Top header bar -->
+        android:pathData="M34,24 L74,24 A12,12 0 0,1 86,36 L86,72 A12,12 0 0,1 74,84 L34,84 A12,12 0 0,1 22,72 L22,36 A12,12 0 0,1 34,24 Z"
+        android:strokeColor="#55FFFFFF"
+        android:strokeWidth="1.2">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:endX="86"
+                android:endY="84"
+                android:startX="22"
+                android:startY="24"
+                android:type="linear">
+                <item android:color="#36FFFFFF" android:offset="0.0" />
+                <item android:color="#14FFFFFF" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Vibrant Coral-Red Top Accent Pill -->
+    <path android:pathData="M33,31 L75,31 A4.5,4.5 0 0,1 79.5,35.5 L79.5,36.5 A4.5,4.5 0 0,1 75,41 L33,41 A4.5,4.5 0 0,1 28.5,36.5 L28.5,35.5 A4.5,4.5 0 0,1 33,31 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:endX="79.5"
+                android:endY="41"
+                android:startX="28.5"
+                android:startY="31"
+                android:type="linear">
+                <item android:color="#FFFF5C42" android:offset="0.0" />
+                <item android:color="#FFFF2D55" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Minimalist 3x2 Geometric Day Dots -->
     <path
-        android:fillColor="#FFFF3B30"
-        android:pathData="M28,28 L80,28 A8,8 0 0,1 88,36 L88,43 L20,43 L20,36 A8,8 0 0,1 28,28 Z" />
-    <!-- Calendar binder rings -->
+        android:fillColor="#D9FFFFFF"
+        android:pathData="M36,50 A3.2,3.2 0 1,1 36,56.4 A3.2,3.2 0 1,1 36,50 Z
+                          M54,50 A3.2,3.2 0 1,1 54,56.4 A3.2,3.2 0 1,1 54,50 Z
+                          M72,50 A3.2,3.2 0 1,1 72,56.4 A3.2,3.2 0 1,1 72,50 Z
+                          M36,66 A3.2,3.2 0 1,1 36,72.4 A3.2,3.2 0 1,1 36,66 Z
+                          M54,66 A3.2,3.2 0 1,1 54,72.4 A3.2,3.2 0 1,1 54,66 Z" />
+
+    <!-- Glowing Coral Today Circle -->
     <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M35,23 L39,23 A2,2 0 0,1 41,25 L41,33 A2,2 0 0,1 39,35 L35,35 A2,2 0 0,1 33,33 L33,25 A2,2 0 0,1 35,23 Z" />
+        android:fillColor="#38FF4F38"
+        android:pathData="M72,60.5 A8.7,8.7 0 1,1 72,77.9 A8.7,8.7 0 1,1 72,60.5 Z" />
     <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M69,23 L73,23 A2,2 0 0,1 75,25 L75,33 A2,2 0 0,1 73,35 L69,35 A2,2 0 0,1 67,33 L67,25 A2,2 0 0,1 69,23 Z" />
-    <!-- Minimalist day grid highlights inside card -->
-    <path
-        android:fillColor="#FF1C1C1E"
-        android:pathData="M33,53 A3,3 0 1,1 33,59 A3,3 0 1,1 33,53 Z M48,53 A3,3 0 1,1 48,59 A3,3 0 1,1 48,53 Z M63,53 A3,3 0 1,1 63,59 A3,3 0 1,1 63,53 Z M33,67 A3,3 0 1,1 33,73 A3,3 0 1,1 33,67 Z" />
-    <!-- Accent highlight circle (Today) -->
-    <path
-        android:fillColor="#FF0A84FF"
-        android:pathData="M56,64 A6,6 0 1,1 56,76 A6,6 0 1,1 56,64 Z" />
-    <!-- Sparkle accent -->
-    <path
-        android:fillColor="#FF30B0C7"
-        android:pathData="M73,63 L75,68 L80,70 L75,72 L73,77 L71,72 L66,70 L71,68 Z" />
+        android:fillColor="#FFFF4F38"
+        android:pathData="M72,63.2 A6,6 0 1,1 72,75.2 A6,6 0 1,1 72,63.2 Z" />
+
 </vector>

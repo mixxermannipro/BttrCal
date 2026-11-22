@@ -58,4 +58,21 @@ class LocalEventParserTest {
         assertEquals(12, start.monthValue)
         assertEquals("Weihnachten", draft.title)
     }
+
+    @Test
+    fun parseConversationalGermanSentenceWithSpelledMonth() {
+        val sentence = "Ich möchte gerne um 17 Uhr einen Termin haben, und zwar zum Pokern spielen am 23. November."
+        val draft = LocalEventParser.parse(
+            input = sentence,
+            now = fixedNow,
+            zoneId = zone
+        )
+        val start = Instant.ofEpochMilli(draft.startMillis).atZone(zone).toLocalDateTime()
+        val end = Instant.ofEpochMilli(draft.endMillis).atZone(zone).toLocalDateTime()
+
+        assertEquals("Pokern spielen", draft.title)
+        assertEquals(LocalDateTime.of(2026, 11, 23, 17, 0), start)
+        assertEquals(LocalDateTime.of(2026, 11, 23, 18, 0), end)
+        assertEquals(sentence, draft.description)
+    }
 }

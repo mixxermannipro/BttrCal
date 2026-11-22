@@ -15,8 +15,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import java.time.DayOfWeek
 
 data class AppSettings(
-    val themeMode: ThemeMode = ThemeMode.LIQUID_GLASS,
-    val glassVariant: GlassVariant = GlassVariant.LIGHT_GLASS,
+    val themeMode: ThemeMode = ThemeMode.DARK,
+    val glassVariant: GlassVariant = GlassVariant.DARK_GLASS,
     val defaultViewMode: CalendarViewMode = CalendarViewMode.MONTH,
     val syncInterval: SyncIntervalOption = SyncIntervalOption.MIN_30,
     val wifiOnlySync: Boolean = false,
@@ -42,15 +42,20 @@ class PreferencesRepository(
     val settings: StateFlow<AppSettings> = _settings.asStateFlow()
 
     private fun loadSettings(): AppSettings {
-        val themeMode = enumOrDefault(prefs.getString(KEY_THEME_MODE, null), ThemeMode.LIQUID_GLASS)
-        val glassVariant = enumOrDefault(prefs.getString(KEY_GLASS_VARIANT, null), GlassVariant.LIGHT_GLASS)
+        val rawTheme = enumOrDefault(prefs.getString(KEY_THEME_MODE, null), ThemeMode.DARK)
+        val glassVariant = enumOrDefault(prefs.getString(KEY_GLASS_VARIANT, null), GlassVariant.DARK_GLASS)
+        val themeMode = if (rawTheme == ThemeMode.LIQUID_GLASS) {
+            if (glassVariant == GlassVariant.LIGHT_GLASS) ThemeMode.LIGHT else ThemeMode.DARK
+        } else {
+            rawTheme
+        }
         val viewMode = enumOrDefault(prefs.getString(KEY_DEFAULT_VIEW, null), CalendarViewMode.MONTH)
         val syncInterval = SyncIntervalOption.fromMinutes(prefs.getLong(KEY_SYNC_INTERVAL_MIN, 30L))
         val firstDay = enumOrDefault(prefs.getString(KEY_FIRST_DOW, null), DayOfWeek.MONDAY)
         val aiProvider = enumOrDefault(prefs.getString(KEY_AI_PROVIDER, null), AiProviderType.GEMINI)
 
         val widgetTheme = enumOrDefault(prefs.getString(KEY_WIDGET_THEME, null), ThemeMode.LIQUID_GLASS)
-        val widgetGlassVariant = enumOrDefault(prefs.getString(KEY_WIDGET_GLASS_VARIANT, null), GlassVariant.LIGHT_GLASS)
+        val widgetGlassVariant = enumOrDefault(prefs.getString(KEY_WIDGET_GLASS_VARIANT, null), GlassVariant.DARK_GLASS)
 
         val aiConfig = AiConfig(
             provider = aiProvider,

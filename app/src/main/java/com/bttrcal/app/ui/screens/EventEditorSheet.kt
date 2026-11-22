@@ -20,9 +20,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DeleteOutline
+import com.bttrcal.app.domain.engine.LocalEventParser
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -122,6 +124,7 @@ fun EventEditorSheet(
     var showEndDatePicker by remember { mutableStateOf(false) }
     var showStartTimePicker by remember { mutableStateOf(false) }
     var showEndTimePicker by remember { mutableStateOf(false) }
+    var smartPrompt by remember(editorState) { mutableStateOf("") }
 
     val dateFmt = remember { DateTimeFormatter.ofPattern("EEE, dd.MM.yyyy", Locale.GERMAN) }
     val timeFmt = remember { DateTimeFormatter.ofPattern("HH:mm", Locale.GERMAN) }
@@ -130,7 +133,7 @@ fun EventEditorSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = if (palette.isDark) Color(0xFF141925) else Color(0xFFFCFDFE)
+        containerColor = if (palette.isDark) Color(0xFF141416) else Color(0xFFFCFDFE)
     ) {
         Column(
             modifier = Modifier
@@ -209,6 +212,59 @@ fun EventEditorSheet(
                     Icon(Icons.Rounded.Check, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(6.dp))
                     Text("Speichern")
+                }
+            }
+
+            if (editorState.existingEvent == null) {
+                LiquidGlassSurface(
+                    cornerRadius = 18.dp,
+                    padding = PaddingValues(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = smartPrompt,
+                            onValueChange = { smartPrompt = it },
+                            placeholder = { Text("z. B. Pokern spielen am 23. Nov 17 Uhr") },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Rounded.AutoAwesome,
+                                    contentDescription = null,
+                                    tint = palette.accent,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            },
+                            singleLine = true,
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier.weight(1f)
+                        )
+                        Button(
+                            onClick = {
+                                val parsed = LocalEventParser.parse(smartPrompt)
+                                val sZdt = Instant.ofEpochMilli(parsed.startMillis).atZone(zone)
+                                val eZdt = Instant.ofEpochMilli(parsed.endMillis).atZone(zone)
+                                title = parsed.title
+                                startDate = sZdt.toLocalDate()
+                                startTime = sZdt.toLocalTime()
+                                endDate = if (parsed.allDay) sZdt.toLocalDate() else eZdt.toLocalDate()
+                                endTime = eZdt.toLocalTime()
+                                allDay = parsed.allDay
+                                if (parsed.location.isNotBlank()) location = parsed.location
+                                if (parsed.description.isNotBlank()) description = parsed.description
+                                if (parsed.rrule != null) rrule = parsed.rrule
+                                reminderMinutes = parsed.reminderMinutes.firstOrNull() ?: reminderMinutes
+                            },
+                            enabled = smartPrompt.isNotBlank(),
+                            colors = ButtonDefaults.buttonColors(containerColor = palette.accent),
+                            shape = RoundedCornerShape(12.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)
+                        ) {
+                            Text("Füllen")
+                        }
+                    }
                 }
             }
 
