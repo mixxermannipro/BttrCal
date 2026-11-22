@@ -76,4 +76,31 @@ class ScheduleAnalyzerTest {
         val firstStart = java.time.Instant.ofEpochMilli(slots.first().startMillis).atZone(zone).toLocalTime()
         assertEquals(12, firstStart.hour)
     }
+
+    @Test
+    fun detectsTravelBuffersMilestonesAndFocusMetrics() {
+        val day = LocalDate.of(2026, 11, 24)
+        val loc1 = occ("Büro Meeting", day.atTime(9, 0), day.atTime(10, 0)).let {
+            it.copy(event = it.event.copy(location = "Büro Mitte"))
+        }
+        val loc2 = occ("Kundentermin", day.atTime(10, 10), day.atTime(11, 0)).let {
+            it.copy(event = it.event.copy(location = "HafenCity"))
+        }
+        val bday = occ("Lukas Geburtstag", day.plusDays(2).atStartOfDay(), day.plusDays(3).atStartOfDay()).let {
+            it.copy(event = it.event.copy(allDay = true))
+        }
+
+        val travel = ScheduleAnalyzer.findTravelBufferWarnings(listOf(loc1, loc2), zoneId = zone)
+        assertEquals(1, travel.size)
+        assertEquals(10L, travel.first().gapMinutes)
+
+        val milestones = ScheduleAnalyzer.findUpcomingMilestones(listOf(bday, loc1), fromDate = day, zoneId = zone)
+        assertEquals(1, milestones.size)
+        assertEquals("In 2 Tagen", milestones.first().labelDe)
+
+        val focus = ScheduleAnalyzer.calculateDailyFocusMetrics(listOf(loc1, loc2), date = day, zoneId = zone)
+        assertEquals(110L, focus.busyMinutes) // 09:00..10:00 (60m) + 10:10..11:00 (50m)
+        assertTrue(focus.focusScore in 5..100)
+        assertEquals(540L, focus.longestFreeBlockMinutes) // 11:00..20:00 = 9h = 540m
+    }
 }

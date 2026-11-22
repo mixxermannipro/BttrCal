@@ -2,7 +2,10 @@ package com.bttrcal.app.ui.screens
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -10,6 +13,11 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -82,6 +90,7 @@ import com.bttrcal.app.ui.theme.LiquidGlassBackdrop
 import com.bttrcal.app.ui.theme.LiquidGlassSurface
 import com.bttrcal.app.ui.theme.LocalBttrPalette
 import com.bttrcal.app.ui.theme.bounceClick
+import com.bttrcal.app.ui.theme.rememberBttrHaptics
 import com.bttrcal.app.ui.views.AgendaView
 import com.bttrcal.app.ui.views.MonthAgendaItemCard
 import com.bttrcal.app.ui.views.MonthView
@@ -123,6 +132,42 @@ fun BttrCalAppRoot(viewModel: MainViewModel) {
     val aiState by viewModel.aiState.collectAsStateWithLifecycle()
     val statusMsg by viewModel.statusMessage.collectAsStateWithLifecycle()
 
+    val duplicateClusters by viewModel.duplicateClusters.collectAsStateWithLifecycle()
+    val conflicts by viewModel.conflicts.collectAsStateWithLifecycle()
+    val travelWarnings by viewModel.travelWarnings.collectAsStateWithLifecycle()
+    val upcomingMilestones by viewModel.upcomingMilestones.collectAsStateWithLifecycle()
+    val dailyFocus by viewModel.dailyFocus.collectAsStateWithLifecycle()
+
+    val haptics = rememberBttrHaptics()
+    var isDockVisible by remember { mutableStateOf(true) }
+    LaunchedEffect(selectedTab, viewMode, overlayScreen, searchActive) {
+        isDockVisible = true
+    }
+
+    val nestedScrollConnection = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (available.y > 14f) {
+                    isDockVisible = true
+                }
+                return Offset.Zero
+            }
+
+            override fun onPostScroll(
+                consumed: Offset,
+                available: Offset,
+                source: NestedScrollSource
+            ): Offset {
+                if (consumed.y < -5f) {
+                    isDockVisible = false
+                } else if (consumed.y > 5f) {
+                    isDockVisible = true
+                }
+                return Offset.Zero
+            }
+        }
+    }
+
     val snackbarHostState = remember { SnackbarHostState() }
     LaunchedEffect(statusMsg) {
         if (!statusMsg.isNullOrBlank()) {
@@ -139,12 +184,17 @@ fun BttrCalAppRoot(viewModel: MainViewModel) {
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
+                .nestedScroll(nestedScrollConnection)
         ) {
             AnimatedContent(
                 targetState = overlayScreen to selectedTab,
                 transitionSpec = {
-                    (fadeIn(tween(220)) + scaleIn(initialScale = 0.985f, animationSpec = tween(220)))
-                        .togetherWith(fadeOut(tween(150)))
+                    (fadeIn(spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)) +
+                        scaleIn(
+                            initialScale = 0.96f,
+                            animationSpec = spring(dampingRatio = 0.70f, stiffness = 360f)
+                        ))
+                        .togetherWith(fadeOut(tween(130)))
                 },
                 label = "root_screen_transition"
             ) { (overlay, tab) ->
@@ -213,17 +263,51 @@ fun BttrCalAppRoot(viewModel: MainViewModel) {
                         AppTab.AI -> AiAssistantScreen(
                             aiConfig = settings.aiConfig,
                             aiState = aiState,
+                            calendars = calendars,
+                            duplicateClusters = duplicateClusters,
+                            conflicts = conflicts,
+                            travelWarnings = travelWarnings,
+                            upcomingMilestones = upcomingMilestones,
+                            dailyFocus = dailyFocus,
+                            onMergeDuplicates = { cluster, targetCalId, title ->
+                                haptics.confirm()
+                                viewModel.mergeDuplicateCluster(cluster, targetCalId, title)
+                            },
+                            onDeleteDuplicateEvent = { id, title ->
+                                haptics.tick()
+                                viewModel.deleteSingleDuplicate(id, title)
+                            },
+                            onEventClick = { viewModel.openEventDetail(it) },
                             onQuickInputChanged = { viewModel.updateAiQuickInput(it) },
-                            onParseQuick = { viewModel.parseQuickEvent(null) },
-                            onSaveDraftDirectly = { viewModel.saveDraftDirectly(it) },
+                            onParseQuick = {
+                                haptics.tick()
+                                viewModel.parseQuickEvent(null)
+                            },
+                            onSaveDraftDirectly = {
+                                haptics.confirm()
+                                viewModel.saveDraftDirectly(it)
+                            },
                             onOpenDraftInEditor = { viewModel.openEditorFromDraft(it) },
-                            onChangeBriefingDays = { viewModel.setBriefingPeriodDays(it) },
-                            onRefreshBriefing = { viewModel.refreshAiBriefing() },
+                            onChangeBriefingDays = {
+                                haptics.tick()
+                                viewModel.setBriefingPeriodDays(it)
+                            },
+                            onRefreshBriefing = {
+                                haptics.tick()
+                                viewModel.refreshAiBriefing()
+                            },
                             onExtractTextChanged = { viewModel.updateExtractRawText(it) },
-                            onExtractEvents = { viewModel.extractEventsFromRawText() },
+                            onExtractEvents = {
+                                haptics.tick()
+                                viewModel.extractEventsFromRawText()
+                            },
                             onSlotParamsChanged = { g, d -> viewModel.updateSlotParams(g, d) },
-                            onFindSlots = { viewModel.findSmartSlots() },
+                            onFindSlots = {
+                                haptics.tick()
+                                viewModel.findSmartSlots()
+                            },
                             onBookSlot = { slot ->
+                                haptics.tick()
                                 viewModel.openEditorFromDraft(
                                     ParsedEventDraft(
                                         title = aiState.slotGoal.ifBlank { "Fokuszeit" },
@@ -258,8 +342,24 @@ fun BttrCalAppRoot(viewModel: MainViewModel) {
                 }
             }
 
-            // Floating iOS-26 / Honor Style Bottom Dock + Dedicated Circular + Button
+            // Floating Scroll-Aware Bottom Dock + Persistent Circular + Button on all tabs
             if (overlayScreen == OverlayScreen.NONE) {
+                val dockOffsetY by animateDpAsState(
+                    targetValue = if (isDockVisible) 0.dp else 112.dp,
+                    animationSpec = spring(dampingRatio = 0.66f, stiffness = 360f),
+                    label = "dock_offset_y"
+                )
+                val dockAlpha by animateFloatAsState(
+                    targetValue = if (isDockVisible) 1f else 0f,
+                    animationSpec = tween(200),
+                    label = "dock_alpha"
+                )
+                val dockScale by animateFloatAsState(
+                    targetValue = if (isDockVisible) 1f else 0.88f,
+                    animationSpec = spring(dampingRatio = 0.66f, stiffness = 360f),
+                    label = "dock_scale"
+                )
+
                 Column(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
@@ -269,40 +369,45 @@ fun BttrCalAppRoot(viewModel: MainViewModel) {
                     SnackbarHost(hostState = snackbarHostState)
 
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .graphicsLayer {
+                                translationY = dockOffsetY.toPx()
+                                alpha = dockAlpha
+                                scaleX = dockScale
+                                scaleY = dockScale
+                            },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         FloatingLiquidNavBar(
                             selectedTab = selectedTab,
-                            onSelectTab = { viewModel.selectTab(it) },
+                            duplicateCount = duplicateClusters.size,
+                            enabled = isDockVisible,
+                            onSelectTab = {
+                                isDockVisible = true
+                                viewModel.selectTab(it)
+                            },
                             modifier = Modifier.weight(1f)
                         )
 
-                        AnimatedVisibility(
-                            visible = selectedTab == AppTab.CALENDAR,
-                            enter = fadeIn(spring(stiffness = Spring.StiffnessMediumLow)) + scaleIn(initialScale = 0.85f),
-                            exit = fadeOut(tween(140)) + scaleOut(targetScale = 0.85f)
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        LiquidGlassSurface(
+                            modifier = Modifier.size(56.dp),
+                            cornerRadius = 28.dp,
+                            elevated = true,
+                            onClick = if (isDockVisible) ({ viewModel.openNewEventEditor() }) else null
                         ) {
-                            Row {
-                                Spacer(modifier = Modifier.width(12.dp))
-                                LiquidGlassSurface(
-                                    modifier = Modifier.size(56.dp),
-                                    cornerRadius = 28.dp,
-                                    elevated = true,
-                                    onClick = { viewModel.openNewEventEditor() }
-                                ) {
-                                    Box(
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Rounded.Add,
-                                            contentDescription = "Neuer Termin",
-                                            tint = palette.textPrimary,
-                                            modifier = Modifier.size(26.dp)
-                                        )
-                                    }
-                                }
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Add,
+                                    contentDescription = "Neuer Termin",
+                                    tint = palette.accent,
+                                    modifier = Modifier.size(28.dp)
+                                )
                             }
                         }
                     }
@@ -326,9 +431,18 @@ fun BttrCalAppRoot(viewModel: MainViewModel) {
             occurrence = occ,
             isReadOnly = cal?.isReadOnly == true,
             onDismiss = { viewModel.closeEventDetail() },
-            onEdit = { viewModel.openEditEventEditor(occ.event) },
-            onDuplicate = { viewModel.duplicateEvent(occ.event) },
-            onDelete = { viewModel.deleteEvent(occ.event.id) },
+            onEdit = {
+                haptics.tick()
+                viewModel.openEditEventEditor(occ.event)
+            },
+            onDuplicate = {
+                haptics.confirm()
+                viewModel.duplicateEvent(occ.event)
+            },
+            onDelete = {
+                haptics.heavy()
+                viewModel.deleteEvent(occ.event.id)
+            },
             onShareIcs = { viewModel.shareEventIcs(context, occ.event) }
         )
     }
@@ -338,8 +452,14 @@ fun BttrCalAppRoot(viewModel: MainViewModel) {
             editorState = editorState,
             calendars = calendars,
             onDismiss = { viewModel.closeEditor() },
-            onSave = { viewModel.saveEvent(it) },
-            onDelete = { viewModel.deleteEvent(it) }
+            onSave = {
+                haptics.confirm()
+                viewModel.saveEvent(it)
+            },
+            onDelete = {
+                haptics.heavy()
+                viewModel.deleteEvent(it)
+            }
         )
     }
 
@@ -347,8 +467,14 @@ fun BttrCalAppRoot(viewModel: MainViewModel) {
         QuickAddSheet(
             aiState = aiState,
             onInputChanged = { viewModel.updateAiQuickInput(it) },
-            onParse = { viewModel.parseQuickEvent(it) },
-            onSaveDraftDirectly = { viewModel.saveDraftDirectly(it) },
+            onParse = {
+                haptics.tick()
+                viewModel.parseQuickEvent(it)
+            },
+            onSaveDraftDirectly = {
+                haptics.confirm()
+                viewModel.saveDraftDirectly(it)
+            },
             onOpenInEditor = { viewModel.openEditorFromDraft(it) },
             onDismiss = { viewModel.closeQuickAdd() }
         )
@@ -665,12 +791,17 @@ private fun CalendarTabContent(
                 ) {
                     modes.forEach { (mode, label) ->
                         val active = viewMode == mode
+                        val pillBg by animateColorAsState(
+                            targetValue = if (active) palette.surfaceSubtle else Color.Transparent,
+                            animationSpec = spring(dampingRatio = 0.72f, stiffness = 420f),
+                            label = "view_pill_bg"
+                        )
                         Box(
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(RoundedCornerShape(18.dp))
-                                .background(if (active) palette.surfaceSubtle else Color.Transparent)
-                                .bounceClick(scaleTarget = 0.94f) { onViewModeChanged(mode) }
+                                .background(pillBg)
+                                .bounceClick(scaleTarget = 0.92f, haptic = true) { onViewModeChanged(mode) }
                                 .padding(vertical = 8.dp),
                             contentAlignment = Alignment.Center
                         ) {
@@ -688,9 +819,9 @@ private fun CalendarTabContent(
             AnimatedContent(
                 targetState = viewMode,
                 transitionSpec = {
-                    (fadeIn(spring(stiffness = Spring.StiffnessMediumLow)) +
-                        scaleIn(initialScale = 0.985f, animationSpec = spring(stiffness = Spring.StiffnessMediumLow)))
-                        .togetherWith(fadeOut(tween(140)) + scaleOut(targetScale = 0.985f, animationSpec = tween(140)))
+                    (fadeIn(spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)) +
+                        scaleIn(initialScale = 0.96f, animationSpec = spring(dampingRatio = 0.68f, stiffness = 360f)))
+                        .togetherWith(fadeOut(tween(130)) + scaleOut(targetScale = 0.97f, animationSpec = tween(130)))
                 },
                 label = "calendar_view_mode",
                 modifier = Modifier.weight(1f)
@@ -764,6 +895,8 @@ private fun CalendarTabContent(
 @Composable
 private fun FloatingLiquidNavBar(
     selectedTab: AppTab,
+    duplicateCount: Int = 0,
+    enabled: Boolean = true,
     onSelectTab: (AppTab) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -781,6 +914,11 @@ private fun FloatingLiquidNavBar(
         ) {
             AppTab.entries.forEach { tab ->
                 val selected = tab == selectedTab
+                val pillBg by animateColorAsState(
+                    targetValue = if (selected) palette.surfaceSubtle else Color.Transparent,
+                    animationSpec = spring(dampingRatio = 0.68f, stiffness = 380f),
+                    label = "tab_pill_bg"
+                )
                 val icon: ImageVector = when (tab) {
                     AppTab.CALENDAR -> Icons.Rounded.CalendarMonth
                     AppTab.AI -> Icons.Rounded.AutoAwesome
@@ -791,18 +929,30 @@ private fun FloatingLiquidNavBar(
                     modifier = Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(23.dp))
-                        .background(if (selected) palette.surfaceSubtle else Color.Transparent)
-                        .bounceClick(scaleTarget = 0.93f, haptic = true) { onSelectTab(tab) }
+                        .background(pillBg)
+                        .bounceClick(enabled = enabled, scaleTarget = 0.91f, haptic = true) {
+                            onSelectTab(tab)
+                        }
                         .padding(vertical = 7.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = tab.labelDe,
-                            tint = if (selected) palette.accent else palette.textSecondary,
-                            modifier = Modifier.size(21.dp)
-                        )
+                        Box(contentAlignment = Alignment.TopEnd) {
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = tab.labelDe,
+                                tint = if (selected) palette.accent else palette.textSecondary,
+                                modifier = Modifier.size(21.dp)
+                            )
+                            if (tab == AppTab.AI && duplicateCount > 0) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(7.dp)
+                                        .clip(CircleShape)
+                                        .background(palette.accent)
+                                )
+                            }
+                        }
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = tab.labelDe,

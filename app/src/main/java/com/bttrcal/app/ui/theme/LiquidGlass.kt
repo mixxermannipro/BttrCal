@@ -1,8 +1,15 @@
 package com.bttrcal.app.ui.theme
 
+import android.os.Build
+import android.view.HapticFeedbackConstants
+import android.view.View
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -15,8 +22,11 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
@@ -26,25 +36,49 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
+class BttrHaptics(private val view: View) {
+    fun tick() {
+        view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+    }
+
+    fun confirm() {
+        val code = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            HapticFeedbackConstants.CONFIRM
+        } else {
+            HapticFeedbackConstants.KEYBOARD_TAP
+        }
+        view.performHapticFeedback(code)
+    }
+
+    fun heavy() {
+        view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+    }
+}
+
+@Composable
+fun rememberBttrHaptics(): BttrHaptics {
+    val view = LocalView.current
+    return remember(view) { BttrHaptics(view) }
+}
+
 fun Modifier.bounceClick(
     enabled: Boolean = true,
-    scaleTarget: Float = 0.96f,
-    haptic: Boolean = false,
+    scaleTarget: Float = 0.94f,
+    haptic: Boolean = true,
     onClick: () -> Unit
 ): Modifier = composed {
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
-    val hapticFeedback = LocalHapticFeedback.current
+    val view = LocalView.current
     val scale by animateFloatAsState(
         targetValue = if (pressed && enabled) scaleTarget else 1f,
         animationSpec = spring(
-            dampingRatio = 0.68f,
-            stiffness = Spring.StiffnessMedium
+            dampingRatio = 0.56f,
+            stiffness = 440f
         ),
         label = "bounce_scale"
     )
@@ -59,10 +93,40 @@ fun Modifier.bounceClick(
             indication = null
         ) {
             if (haptic) {
-                hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
             }
             onClick()
         }
+}
+
+@Composable
+fun BouncyEntrance(
+    modifier: Modifier = Modifier,
+    delayIndex: Int = 0,
+    content: @Composable () -> Unit
+) {
+    var visible by remember { mutableStateOf(delayIndex == 0) }
+    LaunchedEffect(delayIndex) {
+        if (delayIndex > 0) {
+            kotlinx.coroutines.delay((delayIndex.coerceAtMost(6) * 28L))
+        }
+        visible = true
+    }
+    AnimatedVisibility(
+        visible = visible,
+        modifier = modifier,
+        enter = fadeIn(
+            animationSpec = spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)
+        ) + slideInVertically(
+            initialOffsetY = { (it * 0.14f).toInt().coerceAtLeast(18) },
+            animationSpec = spring(dampingRatio = 0.65f, stiffness = 360f)
+        ) + scaleIn(
+            initialScale = 0.95f,
+            animationSpec = spring(dampingRatio = 0.65f, stiffness = 360f)
+        )
+    ) {
+        content()
+    }
 }
 
 @Composable

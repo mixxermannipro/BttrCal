@@ -41,7 +41,7 @@ class AiClient(
             }
 
             when (config.provider) {
-                AiProviderType.OPENAI, AiProviderType.CUSTOM_OPENAI_COMPATIBLE -> {
+                AiProviderType.OPENAI, AiProviderType.GROQ, AiProviderType.CUSTOM_OPENAI_COMPATIBLE -> {
                     callOpenAiCompatible(
                         baseUrl = config.baseUrl,
                         model = config.model,

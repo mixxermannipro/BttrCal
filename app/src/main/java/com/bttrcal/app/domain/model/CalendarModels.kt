@@ -68,6 +68,7 @@ enum class AiProviderType(
     OPENAI("OpenAI", "gpt-4o-mini", "https://api.openai.com/v1"),
     GEMINI("Google Gemini", "gemini-2.5-flash", "https://generativelanguage.googleapis.com/v1beta"),
     ANTHROPIC("Anthropic Claude", "claude-3-5-haiku-latest", "https://api.anthropic.com/v1"),
+    GROQ("Groq", "llama-3.3-70b-versatile", "https://api.groq.com/openai/v1"),
     CUSTOM_OPENAI_COMPATIBLE("OpenAI-Kompatibel / Lokal", "llama3.2", "http://127.0.0.1:11434/v1")
 }
 
@@ -175,6 +176,27 @@ data class ScheduleConflict(
     val first: EventOccurrence,
     val second: EventOccurrence,
     val overlapMinutes: Long
+)
+
+data class TravelBufferWarning(
+    val first: EventOccurrence,
+    val second: EventOccurrence,
+    val gapMinutes: Long,
+    val messageDe: String
+)
+
+data class UpcomingMilestone(
+    val occurrence: EventOccurrence,
+    val daysUntil: Long,
+    val labelDe: String
+)
+
+data class DailyFocusMetrics(
+    val focusScore: Int,
+    val busyMinutes: Long,
+    val freeMinutes: Long,
+    val longestFreeBlockMinutes: Long,
+    val summaryDe: String
 )
 
 data class FreeSlotSuggestion(

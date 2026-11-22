@@ -34,7 +34,11 @@ class TodayCardWidgetProvider : AppWidgetProvider() {
 
         val dayStart = today.atStartOfDay(zone).toInstant().toEpochMilli()
         val dayEnd = today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
-        val todayOccs = app.repository.getOccurrencesInRange(dayStart, dayEnd, onlyVisible = true, zoneId = zone).take(4)
+        val now = System.currentTimeMillis()
+        val todayOccs = app.repository.getOccurrencesInRange(dayStart, dayEnd, onlyVisible = true, zoneId = zone)
+            .filter { occ -> occ.event.allDay || occ.occurrenceEndMillis > now }
+            .distinctBy { it.event.title.trim().lowercase(Locale.GERMAN) }
+            .take(4)
 
         val views = RemoteViews(context.packageName, R.layout.widget_today_card)
         views.setInt(R.id.today_widget_root, "setBackgroundResource", WidgetUpdater.resolveBackgroundRes(style))

@@ -55,6 +55,7 @@ import com.bttrcal.app.domain.model.ThemeMode
 import com.bttrcal.app.ui.AiUiState
 import com.bttrcal.app.ui.theme.LiquidGlassSurface
 import com.bttrcal.app.ui.theme.LocalBttrPalette
+import com.bttrcal.app.ui.theme.rememberBttrHaptics
 import java.time.DayOfWeek
 
 @Composable
@@ -73,6 +74,7 @@ fun SettingsScreen(
 ) {
     val palette = LocalBttrPalette.current
     val context = LocalContext.current
+    val haptics = rememberBttrHaptics()
 
     BackHandler(onBack = onBack)
 
@@ -270,7 +272,10 @@ fun SettingsScreen(
 
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(
-                            onClick = { onTestAiConnection(selectedProvider, aiModel, aiBaseUrl, newApiKey) },
+                            onClick = {
+                                haptics.tick()
+                                onTestAiConnection(selectedProvider, aiModel, aiBaseUrl, newApiKey)
+                            },
                             enabled = !aiState.isTestingConnection,
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(14.dp)
@@ -283,6 +288,7 @@ fun SettingsScreen(
                         }
                         Button(
                             onClick = {
+                                haptics.confirm()
                                 val keyUpdate = if (newApiKey.isNotBlank()) newApiKey else null
                                 onSaveAiConfig(selectedProvider, aiModel, aiBaseUrl, aiEnabled, keyUpdate)
                             },

@@ -12,25 +12,33 @@ import com.bttrcal.app.MainActivity
 import com.bttrcal.app.data.ai.AiTestResult
 import com.bttrcal.app.data.local.AppSettings
 import com.bttrcal.app.data.sync.SyncScheduler
+import com.bttrcal.app.domain.engine.DuplicateCluster
+import com.bttrcal.app.domain.engine.DuplicateDetector
 import com.bttrcal.app.domain.engine.LocalEventParser
 import com.bttrcal.app.domain.engine.ScheduleAnalyzer
 import com.bttrcal.app.domain.model.AiProviderType
 import com.bttrcal.app.domain.model.AppTab
 import com.bttrcal.app.domain.model.CalendarEvent
 import com.bttrcal.app.domain.model.CalendarViewMode
+import com.bttrcal.app.domain.model.DailyFocusMetrics
 import com.bttrcal.app.domain.model.EventOccurrence
 import com.bttrcal.app.domain.model.FreeSlotSuggestion
 import com.bttrcal.app.domain.model.GlassVariant
 import com.bttrcal.app.domain.model.ParsedEventDraft
 import com.bttrcal.app.domain.model.ScheduleBriefing
+import com.bttrcal.app.domain.model.ScheduleConflict
 import com.bttrcal.app.domain.model.SyncIntervalOption
 import com.bttrcal.app.domain.model.ThemeMode
+import com.bttrcal.app.domain.model.TravelBufferWarning
+import com.bttrcal.app.domain.model.UpcomingMilestone
 import com.bttrcal.app.domain.model.WidgetStyleConfig
 import com.bttrcal.app.widget.WidgetUpdater
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.time.DayOfWeek
 import java.time.Instant
@@ -131,9 +139,29 @@ class MainViewModel(private val app: BttrCalApplication) : ViewModel() {
     private val _statusMessage = MutableStateFlow<String?>(null)
     val statusMessage: StateFlow<String?> = _statusMessage.asStateFlow()
 
+    private val _duplicateClusters = MutableStateFlow<List<DuplicateCluster>>(emptyList())
+    val duplicateClusters: StateFlow<List<DuplicateCluster>> = _duplicateClusters.asStateFlow()
+
+    private val _conflicts = MutableStateFlow<List<ScheduleConflict>>(emptyList())
+    val conflicts: StateFlow<List<ScheduleConflict>> = _conflicts.asStateFlow()
+
+    private val _travelWarnings = MutableStateFlow<List<TravelBufferWarning>>(emptyList())
+    val travelWarnings: StateFlow<List<TravelBufferWarning>> = _travelWarnings.asStateFlow()
+
+    private val _upcomingMilestones = MutableStateFlow<List<UpcomingMilestone>>(emptyList())
+    val upcomingMilestones: StateFlow<List<UpcomingMilestone>> = _upcomingMilestones.asStateFlow()
+
+    private val _dailyFocus = MutableStateFlow<DailyFocusMetrics?>(null)
+    val dailyFocus: StateFlow<DailyFocusMetrics?> = _dailyFocus.asStateFlow()
+
     init {
         if (settings.value.syncOnLaunch) {
             triggerSyncNow(silent = true)
+        }
+        viewModelScope.launch {
+            dataRevision.collect {
+                refreshLocalIntelligence()
+            }
         }
         refreshAiBriefing()
         findSmartSlots()
@@ -739,6 +767,59 @@ class MainViewModel(private val app: BttrCalApplication) : ViewModel() {
             )
             val res = app.aiClient.testConnection(cfg, effectiveKey)
             _aiState.value = _aiState.value.copy(isTestingConnection = false, testResult = res)
+        }
+    }
+
+    fun refreshLocalIntelligence() {
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.Default) {
+                val zone = ZoneId.systemDefault()
+                val today = LocalDate.now(zone)
+
+                val dupStart = today.minusDays(7).atStartOfDay(zone).toInstant().toEpochMilli()
+                val dupEnd = today.plusDays(180).atStartOfDay(zone).toInstant().toEpochMilli()
+                val dupOccs = app.repository.getOccurrencesInRange(dupStart, dupEnd, onlyVisible = true, zoneId = zone)
+                val clusters = DuplicateDetector.detectDuplicates(dupOccs, zone)
+
+                val nearStart = today.atStartOfDay(zone).toInstant().toEpochMilli()
+                val nearEnd = today.plusDays(30).atStartOfDay(zone).toInstant().toEpochMilli()
+                val nearOccs = app.repository.getOccurrencesInRange(nearStart, nearEnd, onlyVisible = true, zoneId = zone)
+                val conflictsList = ScheduleAnalyzer.findConflicts(nearOccs)
+                val travelList = ScheduleAnalyzer.findTravelBufferWarnings(nearOccs, zoneId = zone)
+                val milestonesList = ScheduleAnalyzer.findUpcomingMilestones(nearOccs, fromDate = today, horizonDays = 30L, zoneId = zone)
+
+                val todayEnd = today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+                val todayOccs = app.repository.getOccurrencesInRange(nearStart, todayEnd, onlyVisible = true, zoneId = zone)
+                val focus = ScheduleAnalyzer.calculateDailyFocusMetrics(todayOccs, date = today, zoneId = zone)
+
+                Triple(clusters, conflictsList to travelList, milestonesList to focus)
+            }
+
+            _duplicateClusters.value = result.first
+            _conflicts.value = result.second.first
+            _travelWarnings.value = result.second.second
+            _upcomingMilestones.value = result.third.first
+            _dailyFocus.value = result.third.second
+        }
+    }
+
+    fun mergeDuplicateCluster(
+        cluster: DuplicateCluster,
+        targetCalendarId: String,
+        mergedTitle: String
+    ) {
+        viewModelScope.launch {
+            val saved = app.repository.mergeDuplicateCluster(cluster, targetCalendarId, mergedTitle)
+            val removedCount = cluster.occurrences.count { it.event.id != saved.id }
+            val calName = calendars.value.firstOrNull { it.id == targetCalendarId }?.name ?: "Ziel-Kalender"
+            _statusMessage.value = "Zusammengeführt in „$calName“ · $removedCount Duplikat(e) entfernt"
+        }
+    }
+
+    fun deleteSingleDuplicate(eventId: String, title: String) {
+        viewModelScope.launch {
+            app.repository.deleteEvent(eventId)
+            _statusMessage.value = "Duplikat „$title“ entfernt"
         }
     }
 

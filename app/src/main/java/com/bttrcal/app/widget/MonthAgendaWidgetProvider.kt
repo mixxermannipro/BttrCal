@@ -93,7 +93,7 @@ class MonthAgendaWidgetProvider : AppWidgetProvider() {
         val primaryText = if (isDark) Color.parseColor("#F2F4F8") else Color.parseColor("#101828")
         val mutedText = if (isDark) Color.parseColor("#98A2B3") else Color.parseColor("#667085")
         val outMonthText = if (isDark) Color.parseColor("#475467") else Color.parseColor("#B0B7C3")
-        val accentBlue = Color.parseColor("#0A84FF")
+        val accentCoral = Color.parseColor("#FF4F38")
 
         val monthTitle = targetYm.atDay(1).format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.GERMAN))
             .replaceFirstChar { it.titlecase(Locale.GERMAN) }
@@ -152,14 +152,20 @@ class MonthAgendaWidgetProvider : AppWidgetProvider() {
             views.setOnClickPendingIntent(dayId, openDayPending)
         }
 
-        // Next 3 upcoming events from now
+        // Next 3 upcoming events from now (deduplicated per day + title)
         val now = System.currentTimeMillis()
         val upcoming = app.repository.getOccurrencesInRange(
             now,
             now + 30L * 86_400_000L,
             onlyVisible = true,
             zoneId = zone
-        ).take(3)
+        )
+            .filter { occ -> occ.event.allDay || occ.occurrenceEndMillis > now }
+            .distinctBy { occ ->
+                val d = Instant.ofEpochMilli(occ.occurrenceStartMillis).atZone(zone).toLocalDate()
+                "${d}_${occ.event.title.trim().lowercase(Locale.GERMAN)}"
+            }
+            .take(3)
 
         val rowIds = intArrayOf(R.id.widget_ev_row_0, R.id.widget_ev_row_1, R.id.widget_ev_row_2)
         val barIds = intArrayOf(R.id.widget_ev_bar_0, R.id.widget_ev_bar_1, R.id.widget_ev_bar_2)
@@ -170,7 +176,7 @@ class MonthAgendaWidgetProvider : AppWidgetProvider() {
 
         if (upcoming.isEmpty()) {
             views.setViewVisibility(rowIds[0], View.VISIBLE)
-            views.setInt(barIds[0], "setBackgroundColor", accentBlue)
+            views.setInt(barIds[0], "setBackgroundColor", accentCoral)
             views.setTextViewText(titleIds[0], "Keine anstehenden Termine")
             views.setTextColor(titleIds[0], mutedText)
             views.setTextViewText(timeIds[0], "")
