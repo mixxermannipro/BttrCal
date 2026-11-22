@@ -137,7 +137,13 @@ fun SyncCenterScreen(
 
     var showLocalCalDialog by remember { mutableStateOf(false) }
     var showCalDavDialog by remember { mutableStateOf(false) }
+    var calDavPresetName by remember { mutableStateOf("Nextcloud / CalDAV") }
+    var calDavPresetUrl by remember { mutableStateOf("") }
+    var calDavPresetHint by remember { mutableStateOf("") }
+    var calDavPresetColor by remember { mutableIntStateOf(CalendarColors.palette[4]) }
     var showIcsSubDialog by remember { mutableStateOf(false) }
+    var icsPresetName by remember { mutableStateOf("Feiertage / Abo") }
+    var icsPresetHint by remember { mutableStateOf("") }
     var showGoogleApiDialog by remember { mutableStateOf(false) }
 
     val timeFmt = remember { DateTimeFormatter.ofPattern("dd.MM. · HH:mm:ss", Locale.GERMAN) }
@@ -300,16 +306,67 @@ fun SyncCenterScreen(
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
-                        text = "Weitere Kalender & Quellen",
+                        text = "Weitere Kalender & Anbieter",
                         style = MaterialTheme.typography.titleMedium,
                         color = palette.textPrimary
                     )
+                    Text(
+                        text = "Schnellauswahl für Apple iCloud, Outlook / Microsoft 365, Nextcloud, Mailbox.org & Fastmail:",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = palette.textSecondary
+                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        ChoiceChipPill("Apple iCloud", false) {
+                            calDavPresetName = "Apple iCloud"
+                            calDavPresetUrl = "https://caldav.icloud.com"
+                            calDavPresetHint = "Nutze deine Apple-ID E-Mail und ein App-spezifisches Passwort (appleid.apple.com)."
+                            calDavPresetColor = CalendarColors.palette[0]
+                            showCalDavDialog = true
+                        }
+                        ChoiceChipPill("Outlook / M365", false) {
+                            icsPresetName = "Outlook Kalender"
+                            icsPresetHint = "Tipp: Falls Outlook auf dem Gerät angemeldet ist, nutze oben „Google & System-Kalender“ für 2-Wege-Sync – oder füge hier den Outlook-ICS-Link ein."
+                            showIcsSubDialog = true
+                        }
+                        ChoiceChipPill("Nextcloud", false) {
+                            calDavPresetName = "Nextcloud"
+                            calDavPresetUrl = "https://cloud.example.de/remote.php/dav/calendars/USER/personal/"
+                            calDavPresetHint = "Kopiere den CalDAV-Link aus deiner Nextcloud Kalender-App."
+                            calDavPresetColor = CalendarColors.palette[5]
+                            showCalDavDialog = true
+                        }
+                        ChoiceChipPill("Mailbox.org", false) {
+                            calDavPresetName = "Mailbox.org"
+                            calDavPresetUrl = "https://dav.mailbox.org/caldav/"
+                            calDavPresetHint = "Vollständige CalDAV-URL deines Mailbox.org-Kalenders eingeben."
+                            calDavPresetColor = CalendarColors.palette[1]
+                            showCalDavDialog = true
+                        }
+                        ChoiceChipPill("Fastmail", false) {
+                            calDavPresetName = "Fastmail"
+                            calDavPresetUrl = "https://caldav.fastmail.com/dav/calendars/"
+                            calDavPresetHint = "Nutze deinen Fastmail-Benutzernamen und ein App-Passwort."
+                            calDavPresetColor = CalendarColors.palette[2]
+                            showCalDavDialog = true
+                        }
+                    }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         OutlinedButton(
-                            onClick = { showCalDavDialog = true },
+                            onClick = {
+                                calDavPresetName = "CalDAV"
+                                calDavPresetUrl = ""
+                                calDavPresetHint = ""
+                                calDavPresetColor = CalendarColors.palette[4]
+                                showCalDavDialog = true
+                            },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(14.dp)
                         ) {
@@ -318,7 +375,11 @@ fun SyncCenterScreen(
                             Text("CalDAV")
                         }
                         OutlinedButton(
-                            onClick = { showIcsSubDialog = true },
+                            onClick = {
+                                icsPresetName = "Feiertage / Abo"
+                                icsPresetHint = ""
+                                showIcsSubDialog = true
+                            },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(14.dp)
                         ) {
@@ -501,6 +562,10 @@ fun SyncCenterScreen(
 
     if (showCalDavDialog) {
         CalDavConnectDialog(
+            initialName = calDavPresetName,
+            initialUrl = calDavPresetUrl,
+            hint = calDavPresetHint,
+            initialColor = calDavPresetColor,
             onDismiss = { showCalDavDialog = false },
             onConnect = { name, url, user, pass, color ->
                 onAddCalDav(name, url, user, pass, color)
@@ -511,6 +576,8 @@ fun SyncCenterScreen(
 
     if (showIcsSubDialog) {
         IcsSubscriptionDialog(
+            initialName = icsPresetName,
+            hint = icsPresetHint,
             onDismiss = { showIcsSubDialog = false },
             onConnect = { name, url, color ->
                 onAddIcsSubscription(name, url, color)
@@ -603,20 +670,27 @@ private fun LocalCalendarDialog(
 
 @Composable
 private fun CalDavConnectDialog(
+    initialName: String,
+    initialUrl: String,
+    hint: String,
+    initialColor: Int,
     onDismiss: () -> Unit,
     onConnect: (String, String, String, String, Int) -> Unit
 ) {
-    var name by remember { mutableStateOf("Nextcloud / CalDAV") }
-    var url by remember { mutableStateOf("") }
+    var name by remember(initialName) { mutableStateOf(initialName) }
+    var url by remember(initialUrl) { mutableStateOf(initialUrl) }
     var user by remember { mutableStateOf("") }
     var pass by remember { mutableStateOf("") }
-    var color by remember { mutableIntStateOf(CalendarColors.palette[4]) }
+    var color by remember(initialColor) { mutableIntStateOf(initialColor) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("CalDAV-Kalender verbinden") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (hint.isNotBlank()) {
+                    Text(hint, style = MaterialTheme.typography.bodyMedium)
+                }
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Bezeichnung") }, singleLine = true)
                 OutlinedTextField(value = url, onValueChange = { url = it }, label = { Text("Kalender-URL (https://...)") }, singleLine = true)
                 OutlinedTextField(value = user, onValueChange = { user = it }, label = { Text("Benutzername / E-Mail") }, singleLine = true)
@@ -643,10 +717,12 @@ private fun CalDavConnectDialog(
 
 @Composable
 private fun IcsSubscriptionDialog(
+    initialName: String,
+    hint: String,
     onDismiss: () -> Unit,
     onConnect: (String, String, Int) -> Unit
 ) {
-    var name by remember { mutableStateOf("Feiertage / Abo") }
+    var name by remember(initialName) { mutableStateOf(initialName) }
     var url by remember { mutableStateOf("") }
     var color by remember { mutableIntStateOf(CalendarColors.palette[5]) }
 
@@ -655,6 +731,9 @@ private fun IcsSubscriptionDialog(
         title = { Text("ICS / WebCal-Abo hinzufügen") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (hint.isNotBlank()) {
+                    Text(hint, style = MaterialTheme.typography.bodyMedium)
+                }
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Name") }, singleLine = true)
                 OutlinedTextField(value = url, onValueChange = { url = it }, label = { Text("https:// oder webcal:// URL") }, singleLine = true)
                 ColorPickerRow(color) { color = it }

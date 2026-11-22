@@ -32,6 +32,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.bttrcal.app.domain.model.ParsedEventDraft
 import com.bttrcal.app.ui.AiUiState
@@ -58,7 +59,7 @@ fun QuickAddSheet(
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = palette.surfaceElevated
+        containerColor = if (palette.isDark) Color(0xFF141925) else Color(0xFFFCFDFE)
     ) {
         Column(
             modifier = Modifier

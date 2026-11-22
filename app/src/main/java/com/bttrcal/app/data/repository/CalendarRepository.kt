@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import java.time.ZoneId
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 
 class CalendarRepository(
     private val context: Context,
@@ -42,7 +43,10 @@ class CalendarRepository(
     private val _dataRevision = MutableStateFlow(0L)
     val dataRevision: StateFlow<Long> = _dataRevision.asStateFlow()
 
+    private val rangeCache = ConcurrentHashMap<String, List<EventOccurrence>>()
+
     fun refreshFromDatabase() {
+        rangeCache.clear()
         _calendars.value = database.getCalendars()
         _accounts.value = database.getAccounts()
         _syncLogs.value = database.getRecentSyncLogs()
@@ -55,6 +59,9 @@ class CalendarRepository(
         onlyVisible: Boolean = true,
         zoneId: ZoneId = ZoneId.systemDefault()
     ): List<EventOccurrence> {
+        val cacheKey = "${rangeStartMillis}_${rangeEndMillis}_${onlyVisible}_${zoneId.id}_${_dataRevision.value}"
+        rangeCache[cacheKey]?.let { return it }
+
         val calMap = _calendars.value
             .filter { !onlyVisible || it.isVisible }
             .associateBy { it.id }
@@ -73,11 +80,14 @@ class CalendarRepository(
                 defaultZoneId = zoneId
             )
         }
-        return result.sortedWith(
+        val sorted = result.sortedWith(
             compareBy<EventOccurrence> { it.occurrenceStartMillis }
                 .thenByDescending { it.event.allDay }
                 .thenBy { it.event.title }
         )
+        if (rangeCache.size > 48) rangeCache.clear()
+        rangeCache[cacheKey] = sorted
+        return sorted
     }
 
     fun searchEvents(query: String): List<EventOccurrence> {

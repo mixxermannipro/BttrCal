@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">BttrCal</string>
+    <string name="widget_split_month_name">BttrCal Split Glas (4×2)</string>
+    <string name="widget_split_month_desc">Kompaktes Liquid-Glass-Widget im Apple-/Honor-Stil mit Monatskalender links und Terminkarten rechts.</string>
     <string name="widget_month_agenda_name">BttrCal Monat &amp; Termine</string>
     <string name="widget_month_agenda_desc">Honor-inspiriertes Monatsraster mit Tagesvorschau und flüssigem Glas-Design.</string>
     <string name="widget_today_card_name">BttrCal Heute-Karte</string>
@@ -9,4 +11,13 @@
     <string name="widget_agenda_list_desc">Scrollbare Terminliste mit direktem Sync und Schnell-Erstellung.</string>
     <string name="notification_channel_name">Termin-Erinnerungen</string>
     <string name="notification_channel_desc">Lokale Erinnerungen für bevorstehende Termine in BttrCal</string>
+    <string name="qs_tile_label">BttrCal Termin</string>
+    <string name="shortcut_new_event_short">Neuer Termin</string>
+    <string name="shortcut_new_event_long">Neuen Termin erstellen</string>
+    <string name="shortcut_smart_add_short">Smart Quick-Add</string>
+    <string name="shortcut_smart_add_long">Termin per Sprache/Text anlegen</string>
+    <string name="shortcut_today_short">Heute</string>
+    <string name="shortcut_today_long">Heutigen Tag öffnen</string>
+    <string name="shortcut_week_short">Woche</string>
+    <string name="shortcut_week_long">Wochenansicht öffnen</string>
 </resources>

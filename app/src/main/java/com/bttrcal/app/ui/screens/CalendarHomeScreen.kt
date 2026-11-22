@@ -228,68 +228,55 @@ fun BttrCalAppRoot(viewModel: MainViewModel) {
                 }
             }
 
-            // Floating Liquid Glass Bottom Navigation + Floating Action Buttons
+            // Floating iOS-26 Style Liquid Glass Bottom Dock + Circular + Button
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .navigationBarsPadding()
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
-                horizontalAlignment = Alignment.End
+                    .padding(horizontal = 14.dp, vertical = 10.dp)
             ) {
                 SnackbarHost(hostState = snackbarHostState)
 
-                if (selectedTab == AppTab.CALENDAR) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(bottom = 10.dp, end = 2.dp)
-                    ) {
-                        LiquidGlassSurface(
-                            cornerRadius = 20.dp,
-                            elevated = true,
-                            padding = PaddingValues(horizontal = 14.dp, vertical = 11.dp),
-                            onClick = { viewModel.openQuickAdd() }
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Rounded.AutoAwesome,
-                                    contentDescription = "Quick-Add",
-                                    tint = palette.accent,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "Smart+",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = palette.textPrimary
-                                )
-                            }
-                        }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    FloatingLiquidNavBar(
+                        selectedTab = selectedTab,
+                        onSelectTab = { viewModel.selectTab(it) },
+                        modifier = Modifier.weight(1f)
+                    )
 
-                        Box(
-                            modifier = Modifier
-                                .size(52.dp)
-                                .clip(CircleShape)
-                                .background(palette.accent)
-                                .bounceClick(scaleTarget = 0.90f, haptic = true) {
-                                    viewModel.openNewEventEditor()
-                                },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Add,
-                                contentDescription = "Neuer Termin",
-                                tint = Color.White,
-                                modifier = Modifier.size(28.dp)
-                            )
+                    AnimatedVisibility(
+                        visible = selectedTab == AppTab.CALENDAR,
+                        enter = fadeIn(spring(stiffness = Spring.StiffnessMediumLow)) + scaleIn(initialScale = 0.8f),
+                        exit = fadeOut(tween(140)) + scaleOut(targetScale = 0.8f)
+                    ) {
+                        Row {
+                            Spacer(modifier = Modifier.width(10.dp))
+                            LiquidGlassSurface(
+                                modifier = Modifier.size(56.dp),
+                                cornerRadius = 28.dp,
+                                elevated = true,
+                                onClick = { viewModel.openNewEventEditor() }
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(palette.accent.copy(alpha = 0.14f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Add,
+                                        contentDescription = "Neuer Termin",
+                                        tint = palette.accent,
+                                        modifier = Modifier.size(26.dp)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
-
-                FloatingLiquidNavBar(
-                    selectedTab = selectedTab,
-                    onSelectTab = { viewModel.selectTab(it) }
-                )
             }
         }
     }
@@ -398,10 +385,25 @@ private fun CalendarTabContent(
                 onClick = onJumpToday
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Rounded.Today, contentDescription = "Heute", tint = palette.accent, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Rounded.Today, contentDescription = "Heute", tint = Color(0xFFFF453A), modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Heute", style = MaterialTheme.typography.labelMedium, color = palette.accent)
+                    Text("Heute", style = MaterialTheme.typography.labelMedium, color = palette.textPrimary)
                 }
+            }
+
+            Spacer(modifier = Modifier.width(6.dp))
+
+            LiquidGlassSurface(
+                cornerRadius = 14.dp,
+                padding = PaddingValues(8.dp),
+                onClick = onOpenQuickAdd
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.AutoAwesome,
+                    contentDescription = "Smart Quick-Add",
+                    tint = palette.accent,
+                    modifier = Modifier.size(18.dp)
+                )
             }
 
             Spacer(modifier = Modifier.width(6.dp))
@@ -600,17 +602,17 @@ private fun CalendarTabContent(
 @Composable
 private fun FloatingLiquidNavBar(
     selectedTab: AppTab,
-    onSelectTab: (AppTab) -> Unit
+    onSelectTab: (AppTab) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val palette = LocalBttrPalette.current
     LiquidGlassSurface(
-        modifier = Modifier
-            .fillMaxWidth()
+        modifier = modifier
             .background(
-                color = palette.background.copy(alpha = if (palette.isGlass) 0.58f else 0.92f),
-                shape = RoundedCornerShape(26.dp)
+                color = palette.background.copy(alpha = if (palette.isGlass) 0.65f else 0.94f),
+                shape = RoundedCornerShape(28.dp)
             ),
-        cornerRadius = 26.dp,
+        cornerRadius = 28.dp,
         elevated = true,
         padding = PaddingValues(horizontal = 6.dp, vertical = 6.dp)
     ) {

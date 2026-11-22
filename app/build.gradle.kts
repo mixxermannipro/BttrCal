@@ -1,8 +1,39 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
+
+fun loadExternalSigningProperties(): Properties {
+    val props = Properties()
+    val candidates = listOf(
+        file("/home/manuelblasaditsch/.bttrcal-signing/keystore.properties"),
+        file("${System.getProperty("user.home")}/.bttrcal-signing/keystore.properties")
+    )
+    val existing = candidates.firstOrNull { it.isFile }
+    if (existing != null) {
+        existing.inputStream().use { props.load(it) }
+    }
+    return props
+}
+
+val externalSigningProps = loadExternalSigningProperties()
+val envKeystorePath = System.getenv("BTTRCAL_KEYSTORE_PATH")
+    ?: externalSigningProps.getProperty("storeFile")
+val envStorePassword = System.getenv("BTTRCAL_STORE_PASSWORD")
+    ?: externalSigningProps.getProperty("storePassword")
+val envKeyAlias = System.getenv("BTTRCAL_KEY_ALIAS")
+    ?: externalSigningProps.getProperty("keyAlias")
+val envKeyPassword = System.getenv("BTTRCAL_KEY_PASSWORD")
+    ?: externalSigningProps.getProperty("keyPassword")
+
+val hasReleaseSigning = !envKeystorePath.isNullOrBlank() &&
+    file(envKeystorePath).isFile &&
+    !envStorePassword.isNullOrBlank() &&
+    !envKeyAlias.isNullOrBlank() &&
+    !envKeyPassword.isNullOrBlank()
 
 android {
     namespace = "com.bttrcal.app"
@@ -22,6 +53,20 @@ android {
         }
     }
 
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = file(envKeystorePath!!)
+                storePassword = envStorePassword
+                keyAlias = envKeyAlias
+                keyPassword = envKeyPassword
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
@@ -30,6 +75,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
         debug {
             applicationIdSuffix = ".debug"

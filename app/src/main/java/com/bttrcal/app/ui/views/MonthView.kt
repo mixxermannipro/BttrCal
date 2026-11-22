@@ -1,13 +1,16 @@
 package com.bttrcal.app.ui.views
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -15,6 +18,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -27,6 +31,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.EventAvailable
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material.icons.rounded.Place
 import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material3.Icon
@@ -35,7 +41,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import java.time.LocalTime
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -106,6 +115,7 @@ fun MonthView(
 
     val zone = remember { ZoneId.systemDefault() }
     val today = LocalDate.now(zone)
+    var isWeekCollapsed by remember { mutableStateOf(false) }
 
     val dayStart = selectedDate.atStartOfDay(zone).toInstant().toEpochMilli()
     val dayEnd = selectedDate.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
@@ -114,14 +124,20 @@ fun MonthView(
     }
 
     Column(modifier = modifier.fillMaxSize()) {
-        // Month grid card
+        // Month / Collapsible Week card
         LiquidGlassSurface(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp),
+                .padding(horizontal = 14.dp)
+                .animateContentSize(
+                    animationSpec = spring(
+                        dampingRatio = 0.82f,
+                        stiffness = Spring.StiffnessMediumLow
+                    )
+                ),
             cornerRadius = 26.dp,
             elevated = true,
-            padding = PaddingValues(horizontal = 10.dp, vertical = 12.dp)
+            padding = PaddingValues(start = 10.dp, end = 10.dp, top = 12.dp, bottom = 6.dp)
         ) {
             Column(modifier = Modifier.fillMaxWidth()) {
                 // Weekday labels
@@ -153,27 +169,69 @@ fun MonthView(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                HorizontalPager(
-                    state = pagerState,
-                    modifier = Modifier.fillMaxWidth(),
-                    beyondViewportPageCount = 1
-                ) { page ->
-                    val pageYm = baseMonth.plusMonths((page - MONTH_BASE_PAGE).toLong())
-                    MonthGridPage(
-                        month = pageYm,
-                        today = today,
+                if (isWeekCollapsed) {
+                    CollapsedWeekRow(
                         selectedDate = selectedDate,
+                        today = today,
                         firstDayOfWeek = firstDayOfWeek,
                         showWeekNumbers = showWeekNumbers,
                         dataRevision = dataRevision,
                         loadOccurrences = loadOccurrences,
                         onSelectDate = onSelectDate
                     )
+                } else {
+                    HorizontalPager(
+                        state = pagerState,
+                        modifier = Modifier.fillMaxWidth(),
+                        beyondViewportPageCount = 1
+                    ) { page ->
+                        val pageYm = baseMonth.plusMonths((page - MONTH_BASE_PAGE).toLong())
+                        MonthGridPage(
+                            month = pageYm,
+                            today = today,
+                            selectedDate = selectedDate,
+                            firstDayOfWeek = firstDayOfWeek,
+                            showWeekNumbers = showWeekNumbers,
+                            dataRevision = dataRevision,
+                            loadOccurrences = loadOccurrences,
+                            onSelectDate = onSelectDate
+                        )
+                    }
+                }
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable { isWeekCollapsed = !isWeekCollapsed }
+                        .padding(vertical = 2.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (isWeekCollapsed) Icons.Rounded.KeyboardArrowDown else Icons.Rounded.KeyboardArrowUp,
+                        contentDescription = if (isWeekCollapsed) "Monat ausklappen" else "Auf Woche einklappen",
+                        tint = palette.textTertiary,
+                        modifier = Modifier.size(20.dp)
+                    )
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // Day Überblick Horizontal Timeline Strip (inspired by Honor/Apple video)
+        DayOverviewTimelineCard(
+            selectedDate = selectedDate,
+            isToday = selectedDate == today,
+            dayStartMillis = dayStart,
+            occurrences = selectedDayEvents,
+            onAddForDate = { onAddForDate(selectedDate) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp)
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
 
         // Selected day header
         val headerFmt = remember { DateTimeFormatter.ofPattern("EEEE, d. MMMM", Locale.GERMAN) }
@@ -359,10 +417,11 @@ private fun MonthDayCell(
     modifier: Modifier = Modifier
 ) {
     val palette = LocalBttrPalette.current
+    val coralToday = Color(0xFFFF453A)
 
     val pillColor by animateColorAsState(
         targetValue = when {
-            isToday -> palette.accent
+            isToday -> coralToday
             isSelected -> palette.accentSoft
             else -> Color.Transparent
         },
@@ -542,4 +601,169 @@ private fun shortDowDe(dow: DayOfWeek): String = when (dow) {
     DayOfWeek.FRIDAY -> "Fr"
     DayOfWeek.SATURDAY -> "Sa"
     DayOfWeek.SUNDAY -> "So"
+}
+
+@Composable
+private fun CollapsedWeekRow(
+    selectedDate: LocalDate,
+    today: LocalDate,
+    firstDayOfWeek: DayOfWeek,
+    showWeekNumbers: Boolean,
+    dataRevision: Long,
+    loadOccurrences: (Long, Long) -> List<EventOccurrence>,
+    onSelectDate: (LocalDate) -> Unit
+) {
+    val palette = LocalBttrPalette.current
+    val zone = remember { ZoneId.systemDefault() }
+    val weekStart = remember(selectedDate, firstDayOfWeek) {
+        selectedDate.with(TemporalAdjusters.previousOrSame(firstDayOfWeek))
+    }
+    val weekFields = remember(firstDayOfWeek) { WeekFields.of(firstDayOfWeek, 4) }
+
+    val eventsByDate = remember(weekStart, dataRevision) {
+        val s = weekStart.atStartOfDay(zone).toInstant().toEpochMilli()
+        val e = weekStart.plusDays(7).atStartOfDay(zone).toInstant().toEpochMilli()
+        val list = loadOccurrences(s, e)
+        val map = HashMap<LocalDate, MutableList<EventOccurrence>>()
+        for (occ in list) {
+            var d = Instant.ofEpochMilli(occ.occurrenceStartMillis).atZone(zone).toLocalDate()
+            val endD = Instant.ofEpochMilli((occ.occurrenceEndMillis - 1L).coerceAtLeast(occ.occurrenceStartMillis))
+                .atZone(zone).toLocalDate()
+            while (!d.isAfter(endD)) {
+                if (!d.isBefore(weekStart) && d.isBefore(weekStart.plusDays(7))) {
+                    map.getOrPut(d) { mutableListOf() }.add(occ)
+                }
+                d = d.plusDays(1)
+            }
+        }
+        map
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (showWeekNumbers) {
+            val kw = weekStart.get(weekFields.weekOfWeekBasedYear())
+            Text(
+                text = kw.toString(),
+                modifier = Modifier.width(26.dp),
+                textAlign = TextAlign.Center,
+                style = MaterialTheme.typography.labelSmall,
+                color = palette.textTertiary
+            )
+        }
+        for (col in 0 until 7) {
+            val cellDate = weekStart.plusDays(col.toLong())
+            MonthDayCell(
+                date = cellDate,
+                isCurrentMonth = true,
+                isToday = cellDate == today,
+                isSelected = cellDate == selectedDate,
+                occurrences = eventsByDate[cellDate].orEmpty(),
+                onClick = { onSelectDate(cellDate) },
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun DayOverviewTimelineCard(
+    selectedDate: LocalDate,
+    isToday: Boolean,
+    dayStartMillis: Long,
+    occurrences: List<EventOccurrence>,
+    onAddForDate: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val palette = LocalBttrPalette.current
+    val zone = remember { ZoneId.systemDefault() }
+    val windowStartHour = 8f
+    val windowEndHour = 20f
+    val totalWindowMinutes = (windowEndHour - windowStartHour) * 60f
+    val windowStartMillis = dayStartMillis + (windowStartHour.toLong() * 3_600_000L)
+
+    LiquidGlassSurface(
+        modifier = modifier,
+        cornerRadius = 18.dp,
+        elevated = false,
+        padding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
+        onClick = onAddForDate
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Überblick",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = palette.textSecondary,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = if (isToday) "Heute" else "${selectedDate.dayOfMonth}.${selectedDate.monthValue}.",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (isToday) Color(0xFFFF453A) else palette.accent
+                )
+            }
+
+            BoxWithConstraints(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(10.dp)
+                    .clip(RoundedCornerShape(5.dp))
+                    .background(palette.surfaceSubtle)
+            ) {
+                val trackW = maxWidth
+                occurrences.filter { !it.event.allDay }.forEach { occ ->
+                    val sMin = ((occ.occurrenceStartMillis - windowStartMillis) / 60_000f).coerceIn(0f, totalWindowMinutes)
+                    val eMin = ((occ.occurrenceEndMillis - windowStartMillis) / 60_000f).coerceIn(0f, totalWindowMinutes)
+                    val span = (eMin - sMin).coerceAtLeast(18f)
+                    if (eMin > 0f && sMin < totalWindowMinutes) {
+                        val xOff = trackW * (sMin / totalWindowMinutes)
+                        val blockW = (trackW * (span / totalWindowMinutes)).coerceAtLeast(6.dp)
+                        Box(
+                            modifier = Modifier
+                                .offset(x = xOff)
+                                .width(blockW)
+                                .height(10.dp)
+                                .clip(RoundedCornerShape(5.dp))
+                                .background(Color(occ.displayColorArgb).copy(alpha = 0.78f))
+                        )
+                    }
+                }
+
+                if (isToday) {
+                    val now = LocalTime.now(zone)
+                    val nowMin = ((now.hour * 60 + now.minute) - windowStartHour * 60f)
+                    if (nowMin in 0f..totalWindowMinutes) {
+                        val needleX = trackW * (nowMin / totalWindowMinutes)
+                        Box(
+                            modifier = Modifier
+                                .offset(x = needleX - 1.dp)
+                                .width(2.5.dp)
+                                .height(10.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(Color(0xFFFF453A))
+                        )
+                    }
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                listOf("8", "10", "12", "14", "16", "18", "20").forEach { lbl ->
+                    Text(
+                        text = lbl,
+                        fontSize = 10.sp,
+                        color = palette.textTertiary
+                    )
+                }
+            }
+        }
+    }
 }

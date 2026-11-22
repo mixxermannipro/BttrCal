@@ -14,6 +14,7 @@ class CalendarSyncWorker(
         val app = BttrCalApplication.from(applicationContext)
         return runCatching {
             val results = app.syncOrchestrator.syncAll()
+            SyncScheduler.scheduleSystemCalendarObserver(applicationContext, replaceExisting = true)
             val allFailed = results.isNotEmpty() && results.none { it.success }
             if (allFailed) Result.retry() else Result.success()
         }.getOrElse {

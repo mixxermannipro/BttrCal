@@ -73,7 +73,7 @@ fun EventDetailSheet(
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = palette.surfaceElevated
+        containerColor = if (palette.isDark) Color(0xFF141925) else Color(0xFFFCFDFE)
     ) {
         Column(
             modifier = Modifier

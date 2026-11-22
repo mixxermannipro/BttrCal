@@ -1,33 +1,40 @@
 # BttrCal
 
-**BttrCal** ist eine moderne, schnelle Local-First-Kalender-App für Android (entwickelt u. a. für Honor Magic 9 Pro Max) als vollwertiger Ersatz für Google Kalender und Honor Kalender.
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
+**BttrCal** ist eine moderne, schnelle, quelloffene **Local-First-Kalender-App für Android** (Kotlin & Jetpack Compose), entwickelt als vollständiger Ersatz für Google Kalender und Honor Kalender.
 
 ## Highlights
 
-- **Apple-inspiriertes Design & drei Modi**: **Light Mode**, **Dark Mode** und **Liquid Glass Mode** (Light Glass & Dark Glass) mit butterweichen Spring-Animationen.
-- **6 Ansichten**: Tag, 3-Tage, Woche, Monat, Jahr und chronologische Agenda.
-- **Local-First Datenbank**: Alle Termine, Serien (RFC 5545 `RRULE`), Erinnerungen und Einstellungen liegen lokal in SQLite (WAL) – sofort nutzbar ohne Cloud-Zwang.
-- **Konfigurierbarer Auto-Sync**: Einstellbares Intervall (`Aus`, `15 Min`, `30 Min`, `1 Std`, `2 Std`, `4 Std`, `6 Std`, `12 Std`, `24 Std`), optional nur im WLAN, beim App-Start und nach Änderungen.
-- **Multi-Kalender-Integration**:
-  - **Google Kalender & Honor/System-Kalender** bidirektional über Android `CalendarContract`
-  - **Direkte Google Calendar REST API v3** (optional mit OAuth-Token)
-  - **CalDAV** (Nextcloud, iCloud, Mailbox.org, Fastmail, Radicale, Baikal)
-  - **ICS / WebCal-Abos** sowie lokaler `.ics`-Import & -Export
-- **Bring Your Own Key (BYOK) KI**:
-  - OpenAI, Google Gemini, Anthropic Claude oder beliebige OpenAI-kompatible Endpunkte (z. B. Ollama, OpenRouter, Groq)
-  - API-Schlüssel sicher im Android Keystore (AES-256-GCM) verschlüsselt
-  - Smart Quick-Add, Tages-/Wochen-Briefing, Text-zu-Termin-Extraktor und freie Zeitfenster (mit 100 % Offline-Fallback)
-- **3 Homescreen-Widgets** (Honor-inspiriert & Liquid Glass):
-  - **Monat + Agenda (4x4)** mit Blättern und Schnell-Hinzufügen
-  - **Heute-Karte (4x2)**
-  - **Scrollbare Agenda-Liste (4x3)**
+- **Apple-inspiriertes Design & 3 Modi:** **Hell**, **Dunkel** und **Liquid Glass** (Helles Glas & Dunkles Glas) mit butterweichen Spring-Animationen, einklappbarer Monats-/Wochenleiste und horizontalem **Überblick**-Tagesbalken.
+- **6 Kalenderansichten:** Tag, 3 Tage, Woche, Monat, Jahr und chronologische Agenda.
+- **Local-First SQLite-Datenbank:** Alle Termine, Serien (RFC 5545 `RRULE`) und Erinnerungen (`AlarmManager` mit Schlummern) laufen lokal auf dem Gerät.
+- **Konfigurierbarer Auto-Sync & Multi-Kalender:**
+  - Intervall frei wählbar (`Aus`, `15 Min`, `30 Min`, `1 Std`, `2 Std`, `4 Std`, `6 Std`, `12 Std`, `24 Std`), optional nur im WLAN, beim App-Start und nach Änderungen.
+  - **Google Kalender, Honor Kalender & Outlook/Exchange** bidirektional über Android `CalendarContract`.
+  - **Apple iCloud, Nextcloud, Mailbox.org, Fastmail & beliebiges CalDAV**.
+  - **Google Calendar REST API v3**, **ICS/WebCal-Abos** und **`.ics`-Import / -Export**.
+- **Bring Your Own Key (BYOK) KI:**
+  - OpenAI, Google Gemini, Anthropic Claude oder lokale/eigene Endpunkte (z. B. Ollama).
+  - Schlüssel werden ausschließlich im **Android Keystore (AES-256-GCM)** gespeichert.
+  - Inklusive **100 % Offline-Fallback** für Smart Quick-Add, Tages-/Wochen-Briefings und freie Zeitfenster.
+- **4 Homescreen-Widgets (Light, Dark & Liquid Glass):**
+  - **Split Glas (4×2 · Apple-/Honor-Stil):** Mini-Monat mit Korallen-Heute-Kreis links & bis zu 3 Glas-Terminkarten rechts
+  - **Monat & Termine (4×4)** mit Blättern und Schnell-Hinzufügen
+  - **Heute-Karte (4×2)**
+  - **Scrollbare Agenda-Liste (4×3)** mit Sync-Button
 
-## Bauen & Testen
+## Download & Installation
+
+Signierte Release-APKs findest du unter [GitHub Releases](https://github.com/mixxermannipro/BttrCal/releases).
+
+## Selbst bauen & testen
 
 ```bash
-export JAVA_HOME=/home/manuelblasaditsch/.gradle/jdks/eclipse_adoptium-17-amd64-linux.2
-export ANDROID_HOME=/home/manuelblasaditsch/Android/sdk
-
 ./gradlew testDebugUnitTest
 ./gradlew assembleDebug
 ```
+
+## Lizenz
+
+Veröffentlicht unter der [MIT License](LICENSE).

@@ -79,5 +79,6 @@ class MainActivity : ComponentActivity() {
         const val EXTRA_OPEN_EVENT_ID = "extra_open_event_id"
         const val EXTRA_OPEN_DATE_MILLIS = "extra_open_date_millis"
         const val EXTRA_QUICK_ADD = "extra_quick_add"
+        const val EXTRA_SHORTCUT_ACTION = "extra_shortcut_action"
     }
 }

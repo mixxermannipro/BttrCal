@@ -2,6 +2,7 @@ package com.bttrcal.app.ui
 
 import android.content.Context
 import android.content.Intent
+import android.provider.CalendarContract
 import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -310,6 +311,88 @@ class MainViewModel(private val app: BttrCalApplication) : ViewModel() {
 
     fun handleLaunchIntent(intent: Intent?) {
         if (intent == null) return
+
+        // 1. Launcher static shortcuts
+        when (intent.getStringExtra(MainActivity.EXTRA_SHORTCUT_ACTION)) {
+            "new_event" -> {
+                _selectedTab.value = AppTab.CALENDAR
+                openNewEventEditor()
+                return
+            }
+            "smart_add" -> {
+                _selectedTab.value = AppTab.CALENDAR
+                openQuickAdd()
+                return
+            }
+            "today" -> {
+                _selectedTab.value = AppTab.CALENDAR
+                jumpToToday()
+                return
+            }
+            "week" -> {
+                _selectedTab.value = AppTab.CALENDAR
+                setViewMode(CalendarViewMode.WEEK)
+                return
+            }
+        }
+
+        // 2. System Calendar INSERT / INSERT_OR_EDIT intents (from other apps)
+        if (intent.action == Intent.ACTION_INSERT || intent.action == Intent.ACTION_INSERT_OR_EDIT) {
+            _selectedTab.value = AppTab.CALENDAR
+            val title = intent.getStringExtra(CalendarContract.Events.TITLE).orEmpty()
+            val location = intent.getStringExtra(CalendarContract.Events.EVENT_LOCATION).orEmpty()
+            val description = intent.getStringExtra(CalendarContract.Events.DESCRIPTION).orEmpty()
+            val rrule = intent.getStringExtra(CalendarContract.Events.RRULE)
+            val allDay = intent.getBooleanExtra(CalendarContract.EXTRA_EVENT_ALL_DAY, false)
+            val now = System.currentTimeMillis()
+            val startMillis = intent.getLongExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, -1L)
+                .takeIf { it > 0L } ?: (now + 1_800_000L)
+            val endMillis = intent.getLongExtra(CalendarContract.EXTRA_EVENT_END_TIME, -1L)
+                .takeIf { it > startMillis } ?: (startMillis + settings.value.defaultEventDurationMinutes * 60_000L)
+
+            _editorState.value = EditorState(
+                isOpen = true,
+                existingEvent = null,
+                prefillTitle = title,
+                prefillLocation = location,
+                prefillDescription = description,
+                prefillStartMillis = startMillis,
+                prefillEndMillis = endMillis,
+                prefillAllDay = allDay,
+                prefillRRule = rrule,
+                prefillReminders = listOf(settings.value.defaultReminderMinutes),
+                prefillCalendarId = app.repository.defaultWritableCalendarId()
+            )
+            return
+        }
+
+        // 3. Share sheet text/plain -> Smart Quick-Add
+        if (intent.action == Intent.ACTION_SEND && intent.type == "text/plain") {
+            val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT).orEmpty().trim()
+            if (sharedText.isNotBlank()) {
+                _selectedTab.value = AppTab.CALENDAR
+                updateAiQuickInput(sharedText)
+                openQuickAdd()
+                parseQuickEvent(sharedText)
+                return
+            }
+        }
+
+        // 4. content://com.android.calendar/time/<millis> deep link
+        val dataUri = intent.data
+        if (intent.action == Intent.ACTION_VIEW &&
+            dataUri != null &&
+            dataUri.host == "com.android.calendar"
+        ) {
+            val timeSeg = dataUri.lastPathSegment?.toLongOrNull()
+            if (timeSeg != null && timeSeg > 0L) {
+                val date = Instant.ofEpochMilli(timeSeg).atZone(ZoneId.systemDefault()).toLocalDate()
+                _selectedTab.value = AppTab.CALENDAR
+                selectDate(date)
+            }
+        }
+
+        // 5. Widget & Reminder deep links
         val dateMillis = intent.getLongExtra(MainActivity.EXTRA_OPEN_DATE_MILLIS, -1L)
         if (dateMillis > 0L) {
             val date = Instant.ofEpochMilli(dateMillis).atZone(ZoneId.systemDefault()).toLocalDate()

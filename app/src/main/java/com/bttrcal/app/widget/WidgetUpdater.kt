@@ -14,6 +14,15 @@ object WidgetUpdater {
     fun updateAllWidgets(context: Context) {
         val manager = AppWidgetManager.getInstance(context)
 
+        val splitIds = manager.getAppWidgetIds(ComponentName(context, SplitMonthWidgetProvider::class.java))
+        if (splitIds.isNotEmpty()) {
+            val intent = Intent(context, SplitMonthWidgetProvider::class.java).apply {
+                action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, splitIds)
+            }
+            context.sendBroadcast(intent)
+        }
+
         val monthIds = manager.getAppWidgetIds(ComponentName(context, MonthAgendaWidgetProvider::class.java))
         if (monthIds.isNotEmpty()) {
             val intent = Intent(context, MonthAgendaWidgetProvider::class.java).apply {

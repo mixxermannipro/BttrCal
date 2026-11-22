@@ -3,6 +3,7 @@ package com.bttrcal.app.ui.screens
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,6 +33,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -47,6 +49,7 @@ import com.bttrcal.app.ui.theme.LiquidGlassSurface
 import com.bttrcal.app.ui.theme.LocalBttrPalette
 import com.bttrcal.app.widget.AgendaListWidgetProvider
 import com.bttrcal.app.widget.MonthAgendaWidgetProvider
+import com.bttrcal.app.widget.SplitMonthWidgetProvider
 import com.bttrcal.app.widget.TodayCardWidgetProvider
 import java.time.Instant
 import java.time.LocalDate
@@ -148,6 +151,17 @@ fun WidgetStudioScreen(
                         )
                     }
                 }
+            }
+        }
+
+        // Widget 0 (Flagship): Video-Matched Split Glass Widget (4x2)
+        item {
+            WidgetPreviewWrapper(
+                title = "Split Glas (4×2 · Video-Stil)",
+                subtitle = "Mini-Monat mit Korallen-Heute-Kreis links & Glas-Terminkarten rechts",
+                onPin = { pinWidget(SplitMonthWidgetProvider::class.java, "BttrCal Split Glas") }
+            ) {
+                SplitMonthWidgetPreview(widgetStyle, today, upcoming)
             }
         }
 
@@ -409,6 +423,140 @@ private fun AgendaListPreview(
                         Column {
                             Text(occ.event.title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = fg)
                             Text(s, fontSize = 10.sp, color = fg.copy(alpha = 0.65f))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SplitMonthWidgetPreview(
+    style: WidgetStyleConfig,
+    today: LocalDate,
+    upcoming: List<EventOccurrence>
+) {
+    val isDark = style.themeMode == ThemeMode.DARK ||
+        (style.themeMode == ThemeMode.LIQUID_GLASS && style.glassVariant == GlassVariant.DARK_GLASS)
+    val isGlass = style.themeMode == ThemeMode.LIQUID_GLASS
+
+    val cardBg = when (style.themeMode) {
+        ThemeMode.LIGHT -> Color(0xFFFAFBFD)
+        ThemeMode.DARK -> Color(0xFF151820)
+        ThemeMode.LIQUID_GLASS -> if (isDark) Color(0xFF1C2338).copy(alpha = 0.44f) else Color(0xFFFFFFFF).copy(alpha = 0.78f)
+    }
+    val innerCardBg = when (style.themeMode) {
+        ThemeMode.LIGHT -> Color(0xFFF1F4F9)
+        ThemeMode.DARK -> Color(0xFF222634)
+        ThemeMode.LIQUID_GLASS -> if (isDark) Color.White.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.70f)
+    }
+    val fg = if (isDark) Color.White else Color(0xFF0F172A)
+    val muted = if (isDark) Color.White.copy(alpha = 0.72f) else Color(0xFF526075)
+    val ym = YearMonth.from(today)
+    val gridStart = ym.atDay(1).with(TemporalAdjusters.previousOrSame(style.firstDayOfWeek))
+    val timeFmt = remember { DateTimeFormatter.ofPattern("HH:mm", Locale.GERMAN) }
+    val zone = remember { ZoneId.systemDefault() }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(26.dp))
+            .background(
+                if (isGlass) {
+                    Brush.linearGradient(
+                        if (isDark) listOf(Color(0xFF1E2942), Color(0xFF2B3554), Color(0xFF1A2238))
+                        else listOf(Color(0xFFD7E7FF), Color(0xFFECE4FF), Color(0xFFD2F3F7))
+                    )
+                } else {
+                    Brush.verticalGradient(listOf(cardBg, cardBg))
+                }
+            )
+            .padding(if (isGlass) 8.dp else 0.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(24.dp))
+                .background(cardBg)
+                .border(1.dp, if (isDark) Color.White.copy(alpha = 0.30f) else Color.White.copy(alpha = 0.85f), RoundedCornerShape(24.dp))
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(0.45f)) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(
+                        today.format(DateTimeFormatter.ofPattern("d. MMMM", Locale.GERMAN)),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = fg
+                    )
+                    Text(
+                        today.format(DateTimeFormatter.ofPattern("EE", Locale.GERMAN)).take(2),
+                        fontSize = 10.sp,
+                        color = muted
+                    )
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                for (r in 0 until 5) {
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        for (c in 0 until 7) {
+                            val d = gridStart.plusDays((r * 7 + c).toLong())
+                            val isToday = d == today
+                            val inMonth = YearMonth.from(d) == ym
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(17.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(15.dp)
+                                        .clip(CircleShape)
+                                        .background(if (isToday) Color(0xFFFF453A) else Color.Transparent),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        d.dayOfMonth.toString(),
+                                        fontSize = 8.5.sp,
+                                        color = when {
+                                            isToday -> Color.White
+                                            inMonth -> fg
+                                            else -> fg.copy(alpha = 0.42f)
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.width(10.dp))
+            Column(modifier = Modifier.weight(0.55f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                upcoming.take(3).forEach { occ ->
+                    val s = Instant.ofEpochMilli(occ.occurrenceStartMillis).atZone(zone)
+                    val e = Instant.ofEpochMilli(occ.occurrenceEndMillis).atZone(zone)
+                    val tStr = if (occ.event.allDay) "Ganztägig" else "${s.format(timeFmt)}–${e.format(timeFmt)}"
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(innerCardBg)
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .width(3.dp)
+                                .height(22.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(Color(occ.displayColorArgb))
+                        )
+                        Spacer(modifier = Modifier.width(7.dp))
+                        Column {
+                            Text(occ.event.title, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = fg, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(tStr, fontSize = 9.5.sp, color = muted, maxLines = 1)
                         }
                     }
                 }

@@ -162,7 +162,7 @@ fun TimeGridView(
                             Text(
                                 text = shortWeekday(d.dayOfWeek),
                                 style = MaterialTheme.typography.labelSmall,
-                                color = if (isToday) palette.accent else palette.textSecondary
+                                color = if (isToday) Color(0xFFFF453A) else palette.textSecondary
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Box(
@@ -171,7 +171,7 @@ fun TimeGridView(
                                     .clip(CircleShape)
                                     .background(
                                         when {
-                                            isToday -> palette.accent
+                                            isToday -> Color(0xFFFF453A)
                                             isSel -> palette.accentSoft
                                             else -> Color.Transparent
                                         }

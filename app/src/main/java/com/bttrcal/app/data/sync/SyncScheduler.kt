@@ -1,6 +1,7 @@
 package com.bttrcal.app.data.sync
 
 import android.content.Context
+import android.provider.CalendarContract
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -16,6 +17,7 @@ object SyncScheduler {
 
     private const val PERIODIC_WORK_NAME = "bttrcal_periodic_sync"
     private const val IMMEDIATE_WORK_NAME = "bttrcal_immediate_sync"
+    private const val CONTENT_OBSERVER_WORK_NAME = "bttrcal_system_calendar_observer"
 
     fun schedulePeriodicSync(
         context: Context,
@@ -59,6 +61,28 @@ object SyncScheduler {
         WorkManager.getInstance(context).enqueueUniqueWork(
             IMMEDIATE_WORK_NAME,
             ExistingWorkPolicy.REPLACE,
+            request
+        )
+    }
+
+    /**
+     * Zero-polling system integration: wakes up automatically via JobScheduler
+     * whenever Google Calendar, Honor Calendar, or Exchange modifies CalendarContract.
+     */
+    fun scheduleSystemCalendarObserver(context: Context, replaceExisting: Boolean = false) {
+        val constraints = Constraints.Builder()
+            .addContentUriTrigger(CalendarContract.Events.CONTENT_URI, true)
+            .setTriggerContentUpdateDelay(4, TimeUnit.SECONDS)
+            .setTriggerContentMaxDelay(20, TimeUnit.SECONDS)
+            .build()
+
+        val request = OneTimeWorkRequestBuilder<CalendarSyncWorker>()
+            .setConstraints(constraints)
+            .build()
+
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            CONTENT_OBSERVER_WORK_NAME,
+            if (replaceExisting) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP,
             request
         )
     }

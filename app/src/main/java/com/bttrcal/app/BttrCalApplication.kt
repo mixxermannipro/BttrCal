@@ -72,6 +72,7 @@ class BttrCalApplication : Application() {
             interval = currentSettings.syncInterval,
             wifiOnly = currentSettings.wifiOnlySync
         )
+        SyncScheduler.scheduleSystemCalendarObserver(this)
     }
 
     companion object {

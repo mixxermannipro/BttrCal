@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="shortcut_new_event"
+        android:enabled="true"
+        android:icon="@android:drawable/ic_input_add"
+        android:shortcutShortLabel="@string/shortcut_new_event_short"
+        android:shortcutLongLabel="@string/shortcut_new_event_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.bttrcal.app"
+            android:targetClass="com.bttrcal.app.MainActivity">
+            <extra android:name="extra_shortcut_action" android:value="new_event" />
+        </intent>
+    </shortcut>
+
+    <shortcut
+        android:shortcutId="shortcut_smart_add"
+        android:enabled="true"
+        android:icon="@android:drawable/ic_menu_edit"
+        android:shortcutShortLabel="@string/shortcut_smart_add_short"
+        android:shortcutLongLabel="@string/shortcut_smart_add_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.bttrcal.app"
+            android:targetClass="com.bttrcal.app.MainActivity">
+            <extra android:name="extra_shortcut_action" android:value="smart_add" />
+        </intent>
+    </shortcut>
+
+    <shortcut
+        android:shortcutId="shortcut_today"
+        android:enabled="true"
+        android:icon="@android:drawable/ic_menu_today"
+        android:shortcutShortLabel="@string/shortcut_today_short"
+        android:shortcutLongLabel="@string/shortcut_today_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.bttrcal.app"
+            android:targetClass="com.bttrcal.app.MainActivity">
+            <extra android:name="extra_shortcut_action" android:value="today" />
+        </intent>
+    </shortcut>
+
+    <shortcut
+        android:shortcutId="shortcut_week"
+        android:enabled="true"
+        android:icon="@android:drawable/ic_menu_week"
+        android:shortcutShortLabel="@string/shortcut_week_short"
+        android:shortcutLongLabel="@string/shortcut_week_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.bttrcal.app"
+            android:targetClass="com.bttrcal.app.MainActivity">
+            <extra android:name="extra_shortcut_action" android:value="week" />
+        </intent>
+    </shortcut>
+</shortcuts>
