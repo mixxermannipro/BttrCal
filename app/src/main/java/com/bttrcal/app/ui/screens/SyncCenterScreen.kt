@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -32,8 +33,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.CloudSync
 import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.FileUpload
 import androidx.compose.material.icons.rounded.IosShare
 import androidx.compose.material.icons.rounded.Link
@@ -71,8 +75,11 @@ import com.bttrcal.app.domain.model.CalendarColors
 import com.bttrcal.app.domain.model.CalendarSource
 import com.bttrcal.app.domain.model.SyncIntervalOption
 import com.bttrcal.app.domain.model.SyncLogEntry
+import com.bttrcal.app.ui.theme.BouncyEntrance
 import com.bttrcal.app.ui.theme.LiquidGlassSurface
 import com.bttrcal.app.ui.theme.LocalBttrPalette
+import com.bttrcal.app.ui.theme.bounceClick
+import com.bttrcal.app.ui.theme.rememberBttrHaptics
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -145,6 +152,9 @@ fun SyncCenterScreen(
     var icsPresetName by remember { mutableStateOf("Feiertage / Abo") }
     var icsPresetHint by remember { mutableStateOf("") }
     var showGoogleApiDialog by remember { mutableStateOf(false) }
+    var showAdvancedSync by remember { mutableStateOf(false) }
+    var showProviders by remember { mutableStateOf(false) }
+    val haptics = rememberBttrHaptics()
 
     val timeFmt = remember { DateTimeFormatter.ofPattern("dd.MM. · HH:mm:ss", Locale.GERMAN) }
 
@@ -168,7 +178,7 @@ fun SyncCenterScreen(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Sync & Kalender",
+                        text = "Konten & Sync",
                         style = MaterialTheme.typography.headlineMedium,
                         color = palette.textPrimary
                     )
@@ -179,7 +189,10 @@ fun SyncCenterScreen(
                     )
                 }
                 Button(
-                    onClick = onSyncNow,
+                    onClick = {
+                        haptics.tick()
+                        onSyncNow()
+                    },
                     enabled = !isSyncing,
                     colors = ButtonDefaults.buttonColors(containerColor = palette.accent),
                     shape = RoundedCornerShape(16.dp)
@@ -197,246 +210,329 @@ fun SyncCenterScreen(
             }
         }
 
-        // Auto-sync interval card
+        // Section 1: Auto-Sync & collapsible options/logs
         item {
-            LiquidGlassSurface(
-                cornerRadius = 24.dp,
-                elevated = true,
-                padding = PaddingValues(16.dp)
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Rounded.CloudSync, contentDescription = null, tint = palette.accent)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Automatischer Hintergrund-Sync",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = palette.textPrimary
-                        )
-                    }
-                    Text(
-                        text = "Wähle das Intervall für den automatischen Abgleich mit Google Kalender, Honor Kalender, CalDAV & ICS-Abos:",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = palette.textSecondary
-                    )
+            BouncyEntrance(delayIndex = 0) {
+                LiquidGlassSurface(
+                    cornerRadius = 24.dp,
+                    elevated = true,
+                    padding = PaddingValues(16.dp)
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Rounded.CloudSync, contentDescription = null, tint = palette.accent)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Automatischer Sync",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = palette.textPrimary,
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (settings.lastFullSyncAt > 0L) {
+                                val lastStr = Instant.ofEpochMilli(settings.lastFullSyncAt)
+                                    .atZone(ZoneId.systemDefault())
+                                    .format(timeFmt)
+                                Text(
+                                    text = lastStr,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = palette.textTertiary
+                                )
+                            }
+                        }
 
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        SyncIntervalOption.entries.forEach { opt ->
-                            ChoiceChipPill(
-                                label = opt.labelDe,
-                                selected = settings.syncInterval == opt
-                            ) {
-                                onSelectInterval(opt)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            SyncIntervalOption.entries.forEach { opt ->
+                                ChoiceChipPill(
+                                    label = opt.labelDe,
+                                    selected = settings.syncInterval == opt
+                                ) {
+                                    onSelectInterval(opt)
+                                }
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .bounceClick(scaleTarget = 0.98f, haptic = true) { showAdvancedSync = !showAdvancedSync }
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = if (showAdvancedSync) "Optionen & Protokoll ausblenden" else "Optionen & Sync-Protokoll (${syncLogs.size})",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = palette.textSecondary,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Icon(
+                                imageVector = if (showAdvancedSync) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                                contentDescription = null,
+                                tint = palette.textSecondary
+                            )
+                        }
+
+                        AnimatedVisibility(visible = showAdvancedSync) {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                ToggleRow("Nur im WLAN synchronisieren", settings.wifiOnlySync, onWifiOnlyChanged)
+                                ToggleRow("Beim App-Start automatisch syncen", settings.syncOnLaunch, onSyncOnLaunchChanged)
+                                ToggleRow("Nach Termin-Änderung sofort syncen", settings.syncAfterEdit, onSyncAfterEditChanged)
+
+                                if (syncLogs.isNotEmpty()) {
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "Letzte Sync-Aktivitäten",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = palette.textSecondary
+                                    )
+                                    syncLogs.take(5).forEach { log ->
+                                        val tStr = Instant.ofEpochMilli(log.timestamp).atZone(ZoneId.systemDefault()).format(timeFmt)
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clip(RoundedCornerShape(12.dp))
+                                                .background(palette.surfaceSubtle)
+                                                .padding(horizontal = 10.dp, vertical = 7.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(7.dp)
+                                                    .clip(CircleShape)
+                                                    .background(if (log.success) palette.success else palette.danger)
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(log.sourceLabel, style = MaterialTheme.typography.labelMedium, color = palette.textPrimary)
+                                                Text("${log.message} · $tStr", style = MaterialTheme.typography.labelSmall, color = palette.textSecondary)
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
-
-                    ToggleRow("Nur im WLAN synchronisieren", settings.wifiOnlySync, onWifiOnlyChanged)
-                    ToggleRow("Beim App-Start automatisch syncen", settings.syncOnLaunch, onSyncOnLaunchChanged)
-                    ToggleRow("Nach Termin-Änderung sofort syncen", settings.syncAfterEdit, onSyncAfterEditChanged)
-
-                    if (settings.lastFullSyncAt > 0L) {
-                        val lastStr = Instant.ofEpochMilli(settings.lastFullSyncAt)
-                            .atZone(ZoneId.systemDefault())
-                            .format(timeFmt)
-                        Text(
-                            text = "Letzter vollständiger Sync: $lastStr",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = palette.textTertiary
-                        )
-                    }
                 }
             }
         }
 
-        // Google & Honor System Calendar Integration
+        // Section 2: Connect Calendars (clean 2x2 grid + system integration)
         item {
-            LiquidGlassSurface(
-                cornerRadius = 24.dp,
-                elevated = true,
-                padding = PaddingValues(16.dp)
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(
-                        text = "Google Kalender & Honor / System-Kalender",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = palette.textPrimary
-                    )
-                    Text(
-                        text = if (hasCalendarPerm) {
-                            "Kalenderzugriff aktiv: Alle auf dem Gerät angemeldeten Google-, Honor- und Exchange-Kalender werden bidirektional synchronisiert."
-                        } else {
-                            "Erlaube den Kalenderzugriff, um deine Google-Kalender und Honor-Systemkalender direkt zu übernehmen und bidirektional zu synchronisieren."
-                        },
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = palette.textSecondary
-                    )
-                    if (!hasCalendarPerm) {
-                        Button(
-                            onClick = {
-                                permLauncher.launch(
-                                    arrayOf(
-                                        Manifest.permission.READ_CALENDAR,
-                                        Manifest.permission.WRITE_CALENDAR
+            BouncyEntrance(delayIndex = 1) {
+                LiquidGlassSurface(
+                    cornerRadius = 24.dp,
+                    elevated = true,
+                    padding = PaddingValues(16.dp)
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Kalender verbinden",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = palette.textPrimary,
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (hasCalendarPerm) {
+                                Row(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(palette.success.copy(alpha = 0.14f))
+                                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = palette.success, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("System aktiv", style = MaterialTheme.typography.labelSmall, color = palette.success)
+                                }
+                            }
+                        }
+
+                        if (!hasCalendarPerm) {
+                            Button(
+                                onClick = {
+                                    haptics.tick()
+                                    permLauncher.launch(
+                                        arrayOf(
+                                            Manifest.permission.READ_CALENDAR,
+                                            Manifest.permission.WRITE_CALENDAR
+                                        )
                                     )
-                                )
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = palette.accent),
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier.fillMaxWidth()
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = palette.accent),
+                                shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Google & Honor System-Kalender verbinden")
+                            }
+                        } else {
+                            Text(
+                                text = "Google-, Honor- und Exchange-Kalender auf dem Gerät werden automatisch in beide Richtungen abgeglichen.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = palette.textSecondary
+                            )
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text("Google & System-Kalender verbinden")
+                            OutlinedButton(
+                                onClick = {
+                                    haptics.tick()
+                                    calDavPresetName = "CalDAV"
+                                    calDavPresetUrl = ""
+                                    calDavPresetHint = ""
+                                    calDavPresetColor = CalendarColors.palette[4]
+                                    showCalDavDialog = true
+                                },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(14.dp)
+                            ) {
+                                Icon(Icons.Rounded.Link, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("CalDAV")
+                            }
+                            OutlinedButton(
+                                onClick = {
+                                    haptics.tick()
+                                    icsPresetName = "Feiertage / Abo"
+                                    icsPresetHint = ""
+                                    showIcsSubDialog = true
+                                },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(14.dp)
+                            ) {
+                                Icon(Icons.Rounded.Link, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("ICS-Abo")
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = {
+                                    haptics.tick()
+                                    showLocalCalDialog = true
+                                },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(14.dp)
+                            ) {
+                                Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Lokal neu")
+                            }
+                            OutlinedButton(
+                                onClick = {
+                                    haptics.tick()
+                                    importTargetCalId = calendars.firstOrNull { !it.isReadOnly }?.id ?: "cal_local_private"
+                                    filePicker.launch(arrayOf("text/calendar", "*/*"))
+                                },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(14.dp)
+                            ) {
+                                Icon(Icons.Rounded.FileUpload, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(".ics Import")
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .bounceClick(scaleTarget = 0.98f, haptic = true) { showProviders = !showProviders }
+                                .padding(vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Anbieter-Vorlagen (iCloud, Outlook, Nextcloud, Google API)",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = palette.textSecondary,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Icon(
+                                imageVector = if (showProviders) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                                contentDescription = null,
+                                tint = palette.textSecondary
+                            )
+                        }
+
+                        AnimatedVisibility(visible = showProviders) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                ChoiceChipPill("Apple iCloud", false) {
+                                    calDavPresetName = "Apple iCloud"
+                                    calDavPresetUrl = "https://caldav.icloud.com"
+                                    calDavPresetHint = "Nutze deine Apple-ID E-Mail und ein App-spezifisches Passwort (appleid.apple.com)."
+                                    calDavPresetColor = CalendarColors.palette[0]
+                                    showCalDavDialog = true
+                                }
+                                ChoiceChipPill("Outlook / M365", false) {
+                                    icsPresetName = "Outlook Kalender"
+                                    icsPresetHint = "Füge den Outlook-ICS-Link ein oder verbinde Outlook über das Android-Systemkonto."
+                                    showIcsSubDialog = true
+                                }
+                                ChoiceChipPill("Nextcloud", false) {
+                                    calDavPresetName = "Nextcloud"
+                                    calDavPresetUrl = "https://cloud.example.de/remote.php/dav/calendars/USER/personal/"
+                                    calDavPresetHint = "Kopiere den CalDAV-Link aus deiner Nextcloud Kalender-App."
+                                    calDavPresetColor = CalendarColors.palette[5]
+                                    showCalDavDialog = true
+                                }
+                                ChoiceChipPill("Mailbox.org", false) {
+                                    calDavPresetName = "Mailbox.org"
+                                    calDavPresetUrl = "https://dav.mailbox.org/caldav/"
+                                    calDavPresetHint = "Vollständige CalDAV-URL deines Mailbox.org-Kalenders eingeben."
+                                    calDavPresetColor = CalendarColors.palette[1]
+                                    showCalDavDialog = true
+                                }
+                                ChoiceChipPill("Fastmail", false) {
+                                    calDavPresetName = "Fastmail"
+                                    calDavPresetUrl = "https://caldav.fastmail.com/dav/calendars/"
+                                    calDavPresetHint = "Nutze deinen Fastmail-Benutzernamen und ein App-Passwort."
+                                    calDavPresetColor = CalendarColors.palette[2]
+                                    showCalDavDialog = true
+                                }
+                                ChoiceChipPill("Google API Token", false) {
+                                    showGoogleApiDialog = true
+                                }
+                            }
                         }
                     }
                 }
             }
         }
 
-        // Additional integrations & Import
-        item {
-            LiquidGlassSurface(
-                cornerRadius = 24.dp,
-                elevated = true,
-                padding = PaddingValues(16.dp)
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(
-                        text = "Weitere Kalender & Anbieter",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = palette.textPrimary
-                    )
-                    Text(
-                        text = "Schnellauswahl für Apple iCloud, Outlook / Microsoft 365, Nextcloud, Mailbox.org & Fastmail:",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = palette.textSecondary
-                    )
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        ChoiceChipPill("Apple iCloud", false) {
-                            calDavPresetName = "Apple iCloud"
-                            calDavPresetUrl = "https://caldav.icloud.com"
-                            calDavPresetHint = "Nutze deine Apple-ID E-Mail und ein App-spezifisches Passwort (appleid.apple.com)."
-                            calDavPresetColor = CalendarColors.palette[0]
-                            showCalDavDialog = true
-                        }
-                        ChoiceChipPill("Outlook / M365", false) {
-                            icsPresetName = "Outlook Kalender"
-                            icsPresetHint = "Tipp: Falls Outlook auf dem Gerät angemeldet ist, nutze oben „Google & System-Kalender“ für 2-Wege-Sync – oder füge hier den Outlook-ICS-Link ein."
-                            showIcsSubDialog = true
-                        }
-                        ChoiceChipPill("Nextcloud", false) {
-                            calDavPresetName = "Nextcloud"
-                            calDavPresetUrl = "https://cloud.example.de/remote.php/dav/calendars/USER/personal/"
-                            calDavPresetHint = "Kopiere den CalDAV-Link aus deiner Nextcloud Kalender-App."
-                            calDavPresetColor = CalendarColors.palette[5]
-                            showCalDavDialog = true
-                        }
-                        ChoiceChipPill("Mailbox.org", false) {
-                            calDavPresetName = "Mailbox.org"
-                            calDavPresetUrl = "https://dav.mailbox.org/caldav/"
-                            calDavPresetHint = "Vollständige CalDAV-URL deines Mailbox.org-Kalenders eingeben."
-                            calDavPresetColor = CalendarColors.palette[1]
-                            showCalDavDialog = true
-                        }
-                        ChoiceChipPill("Fastmail", false) {
-                            calDavPresetName = "Fastmail"
-                            calDavPresetUrl = "https://caldav.fastmail.com/dav/calendars/"
-                            calDavPresetHint = "Nutze deinen Fastmail-Benutzernamen und ein App-Passwort."
-                            calDavPresetColor = CalendarColors.palette[2]
-                            showCalDavDialog = true
-                        }
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedButton(
-                            onClick = {
-                                calDavPresetName = "CalDAV"
-                                calDavPresetUrl = ""
-                                calDavPresetHint = ""
-                                calDavPresetColor = CalendarColors.palette[4]
-                                showCalDavDialog = true
-                            },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(14.dp)
-                        ) {
-                            Icon(Icons.Rounded.Link, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("CalDAV")
-                        }
-                        OutlinedButton(
-                            onClick = {
-                                icsPresetName = "Feiertage / Abo"
-                                icsPresetHint = ""
-                                showIcsSubDialog = true
-                            },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(14.dp)
-                        ) {
-                            Icon(Icons.Rounded.Link, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("ICS / WebCal")
-                        }
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedButton(
-                            onClick = { showGoogleApiDialog = true },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(14.dp)
-                        ) {
-                            Text("Google API Token")
-                        }
-                        OutlinedButton(
-                            onClick = {
-                                importTargetCalId = calendars.firstOrNull { !it.isReadOnly }?.id ?: "cal_local_private"
-                                filePicker.launch(arrayOf("text/calendar", "*/*"))
-                            },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(14.dp)
-                        ) {
-                            Icon(Icons.Rounded.FileUpload, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(".ics Import")
-                        }
-                    }
-                    Button(
-                        onClick = { showLocalCalDialog = true },
-                        colors = ButtonDefaults.buttonColors(containerColor = palette.accent),
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Neuen lokalen Kalender anlegen")
-                    }
-                }
-            }
-        }
-
-        // Connected accounts
-        if (accounts.any { it.accountType != CalendarAccountType.LOCAL }) {
+        // Section 3: External Accounts (only when external accounts exist)
+        val externalAccounts = accounts.filter { it.accountType != CalendarAccountType.LOCAL }
+        if (externalAccounts.isNotEmpty()) {
             item {
                 Text(
-                    text = "Verbundene Konten",
+                    text = "Verknüpfte Konten (${externalAccounts.size})",
                     style = MaterialTheme.typography.titleMedium,
                     color = palette.textPrimary,
                     modifier = Modifier.padding(horizontal = 4.dp)
                 )
             }
-            accounts.filter { it.accountType != CalendarAccountType.LOCAL }.forEach { acc ->
+            externalAccounts.forEach { acc ->
                 item(key = "acc_${acc.id}") {
                     LiquidGlassSurface(
                         cornerRadius = 18.dp,
@@ -450,12 +546,15 @@ fun SyncCenterScreen(
                                 Text(acc.name, style = MaterialTheme.typography.titleMedium, color = palette.textPrimary)
                                 Text(
                                     text = "${acc.accountType.labelDe} · ${acc.syncStatusMessage.ifBlank { acc.emailOrUser }}",
-                                    style = MaterialTheme.typography.bodyMedium,
+                                    style = MaterialTheme.typography.labelSmall,
                                     color = palette.textSecondary
                                 )
                             }
                             if (acc.accountType != CalendarAccountType.ANDROID_PROVIDER) {
-                                IconButton(onClick = { onRemoveAccount(acc.id) }) {
+                                IconButton(onClick = {
+                                    haptics.heavy()
+                                    onRemoveAccount(acc.id)
+                                }) {
                                     Icon(Icons.Rounded.DeleteOutline, contentDescription = "Entfernen", tint = palette.danger)
                                 }
                             }
@@ -465,10 +564,10 @@ fun SyncCenterScreen(
             }
         }
 
-        // All Calendars list
+        // Section 4: Meine Kalender
         item {
             Text(
-                text = "Sichtbare Kalender (${calendars.size})",
+                text = "Meine Kalender (${calendars.size})",
                 style = MaterialTheme.typography.titleMedium,
                 color = palette.textPrimary,
                 modifier = Modifier.padding(horizontal = 4.dp)
@@ -499,51 +598,19 @@ fun SyncCenterScreen(
                                 color = palette.textSecondary
                             )
                         }
-                        IconButton(onClick = { onExportCalendarIcs(cal.id, cal.name) }) {
+                        IconButton(onClick = {
+                            haptics.tick()
+                            onExportCalendarIcs(cal.id, cal.name)
+                        }) {
                             Icon(Icons.Rounded.IosShare, contentDescription = ".ics Export", tint = palette.accent)
                         }
                         Switch(
                             checked = cal.isVisible,
-                            onCheckedChange = { onToggleCalendarVisible(cal.id, it) }
-                        )
-                    }
-                }
-            }
-        }
-
-        // Recent Sync Logs
-        if (syncLogs.isNotEmpty()) {
-            item {
-                Text(
-                    text = "Letzte Sync-Protokolle",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = palette.textPrimary,
-                    modifier = Modifier.padding(horizontal = 4.dp)
-                )
-            }
-            syncLogs.take(6).forEach { log ->
-                item(key = "log_${log.id}") {
-                    val tStr = Instant.ofEpochMilli(log.timestamp).atZone(ZoneId.systemDefault()).format(timeFmt)
-                    LiquidGlassSurface(
-                        cornerRadius = 16.dp,
-                        padding = PaddingValues(horizontal = 14.dp, vertical = 10.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(8.dp)
-                                    .clip(CircleShape)
-                                    .background(if (log.success) palette.success else palette.danger)
-                            )
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(log.sourceLabel, style = MaterialTheme.typography.labelMedium, color = palette.textPrimary)
-                                Text("${log.message} · $tStr", style = MaterialTheme.typography.bodyMedium, color = palette.textSecondary)
+                            onCheckedChange = {
+                                haptics.tick()
+                                onToggleCalendarVisible(cal.id, it)
                             }
-                        }
+                        )
                     }
                 }
             }
@@ -554,6 +621,7 @@ fun SyncCenterScreen(
         LocalCalendarDialog(
             onDismiss = { showLocalCalDialog = false },
             onCreate = { name, color ->
+                haptics.confirm()
                 onCreateLocalCalendar(name, color)
                 showLocalCalDialog = false
             }
@@ -568,6 +636,7 @@ fun SyncCenterScreen(
             initialColor = calDavPresetColor,
             onDismiss = { showCalDavDialog = false },
             onConnect = { name, url, user, pass, color ->
+                haptics.confirm()
                 onAddCalDav(name, url, user, pass, color)
                 showCalDavDialog = false
             }
@@ -580,6 +649,7 @@ fun SyncCenterScreen(
             hint = icsPresetHint,
             onDismiss = { showIcsSubDialog = false },
             onConnect = { name, url, color ->
+                haptics.confirm()
                 onAddIcsSubscription(name, url, color)
                 showIcsSubDialog = false
             }
@@ -590,6 +660,7 @@ fun SyncCenterScreen(
         GoogleApiConnectDialog(
             onDismiss = { showGoogleApiDialog = false },
             onConnect = { name, email, token ->
+                haptics.confirm()
                 onAddGoogleApi(name, email, token)
                 showGoogleApiDialog = false
             }
@@ -604,6 +675,7 @@ fun ToggleRow(
     onCheckedChange: (Boolean) -> Unit
 ) {
     val palette = LocalBttrPalette.current
+    val haptics = rememberBttrHaptics()
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
@@ -614,7 +686,13 @@ fun ToggleRow(
             color = palette.textPrimary,
             modifier = Modifier.weight(1f)
         )
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
+        Switch(
+            checked = checked,
+            onCheckedChange = {
+                haptics.tick()
+                onCheckedChange(it)
+            }
+        )
     }
 }
 

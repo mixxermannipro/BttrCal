@@ -1,5 +1,7 @@
 package com.bttrcal.app.ui.screens
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -60,6 +62,7 @@ import com.bttrcal.app.domain.model.EventAvailability
 import com.bttrcal.app.ui.EditorState
 import com.bttrcal.app.ui.theme.LiquidGlassSurface
 import com.bttrcal.app.ui.theme.LocalBttrPalette
+import com.bttrcal.app.ui.theme.bounceClick
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -568,16 +571,21 @@ fun ChoiceChipPill(
     onClick: () -> Unit
 ) {
     val palette = LocalBttrPalette.current
+    val bg by animateColorAsState(
+        targetValue = if (selected) palette.accentSoft else palette.surfaceSubtle,
+        animationSpec = spring(stiffness = 380f),
+        label = "chip_bg"
+    )
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(14.dp))
-            .background(if (selected) palette.accentSoft else palette.surfaceSubtle)
+            .background(bg)
             .border(
                 width = if (selected) 1.2.dp else 0.7.dp,
                 color = if (selected) palette.accent else palette.border,
                 shape = RoundedCornerShape(14.dp)
             )
-            .clickable(onClick = onClick)
+            .bounceClick(scaleTarget = 0.92f, haptic = true, onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 7.dp)
     ) {
         Text(

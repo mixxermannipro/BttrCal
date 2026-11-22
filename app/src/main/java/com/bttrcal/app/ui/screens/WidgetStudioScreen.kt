@@ -47,8 +47,10 @@ import com.bttrcal.app.domain.model.EventOccurrence
 import com.bttrcal.app.domain.model.GlassVariant
 import com.bttrcal.app.domain.model.ThemeMode
 import com.bttrcal.app.domain.model.WidgetStyleConfig
+import com.bttrcal.app.ui.theme.BouncyEntrance
 import com.bttrcal.app.ui.theme.LiquidGlassSurface
 import com.bttrcal.app.ui.theme.LocalBttrPalette
+import com.bttrcal.app.ui.theme.rememberBttrHaptics
 import com.bttrcal.app.widget.AgendaListWidgetProvider
 import com.bttrcal.app.widget.MonthAgendaWidgetProvider
 import com.bttrcal.app.widget.SplitMonthWidgetProvider
@@ -73,6 +75,7 @@ fun WidgetStudioScreen(
 ) {
     val palette = LocalBttrPalette.current
     val context = LocalContext.current
+    val haptics = rememberBttrHaptics()
     val zone = remember { ZoneId.systemDefault() }
     val today = LocalDate.now(zone)
 
@@ -80,10 +83,14 @@ fun WidgetStudioScreen(
 
     val upcoming = remember(dataRevision) {
         val now = System.currentTimeMillis()
-        loadOccurrences(now - 3_600_000L, now + 14L * 86_400_000L).take(4)
+        loadOccurrences(now - 3_600_000L, now + 14L * 86_400_000L)
+            .filter { occ -> occ.event.allDay || occ.occurrenceEndMillis > now }
+            .distinctBy { it.event.title.trim().lowercase(Locale.GERMAN) }
+            .take(4)
     }
 
     fun pinWidget(providerClass: Class<*>, label: String) {
+        haptics.confirm()
         val mgr = AppWidgetManager.getInstance(context)
         if (mgr.isRequestPinAppWidgetSupported) {
             val ok = mgr.requestPinAppWidget(ComponentName(context, providerClass), null, null)
@@ -181,45 +188,53 @@ fun WidgetStudioScreen(
 
         // Widget 0 (Flagship): Video-Matched Split Glass Widget (4x2)
         item {
-            WidgetPreviewWrapper(
-                title = "Split Glas (4×2 · Video-Stil)",
-                subtitle = "Mini-Monat mit Korallen-Heute-Kreis links & Glas-Terminkarten rechts",
-                onPin = { pinWidget(SplitMonthWidgetProvider::class.java, "BttrCal Split Glas") }
-            ) {
-                SplitMonthWidgetPreview(widgetStyle, today, upcoming)
+            BouncyEntrance(delayIndex = 0) {
+                WidgetPreviewWrapper(
+                    title = "Split Glas (4×2 · Video-Stil)",
+                    subtitle = "Mini-Monat mit Korallen-Heute-Kreis links & Glas-Terminkarten rechts",
+                    onPin = { pinWidget(SplitMonthWidgetProvider::class.java, "BttrCal Split Glas") }
+                ) {
+                    SplitMonthWidgetPreview(widgetStyle, today, upcoming)
+                }
             }
         }
 
         // Widget 1: Honor-Style Month + Agenda Preview
         item {
-            WidgetPreviewWrapper(
-                title = "Monat & Termine (4×4 · Honor-Stil)",
-                subtitle = "Monatsraster mit Blättern, Punkten und kommenden Terminen",
-                onPin = { pinWidget(MonthAgendaWidgetProvider::class.java, "Monat & Termine") }
-            ) {
-                HonorMonthWidgetPreview(widgetStyle, today, upcoming)
+            BouncyEntrance(delayIndex = 1) {
+                WidgetPreviewWrapper(
+                    title = "Monat & Termine (4×4 · Honor-Stil)",
+                    subtitle = "Monatsraster mit Blättern, Punkten und kommenden Terminen",
+                    onPin = { pinWidget(MonthAgendaWidgetProvider::class.java, "Monat & Termine") }
+                ) {
+                    HonorMonthWidgetPreview(widgetStyle, today, upcoming)
+                }
             }
         }
 
         // Widget 2: Today Card Preview
         item {
-            WidgetPreviewWrapper(
-                title = "Heute-Karte (4×2 · Apple-Stil)",
-                subtitle = "Großes Tagesdatum links, bis zu 4 heutige Termine rechts",
-                onPin = { pinWidget(TodayCardWidgetProvider::class.java, "Heute-Karte") }
-            ) {
-                TodayCardPreview(widgetStyle, today, upcoming)
+            BouncyEntrance(delayIndex = 2) {
+                WidgetPreviewWrapper(
+                    title = "Heute-Karte (4×2 · Apple-Stil)",
+                    subtitle = "Großes Tagesdatum links, bis zu 4 heutige Termine rechts",
+                    onPin = { pinWidget(TodayCardWidgetProvider::class.java, "Heute-Karte") }
+                ) {
+                    TodayCardPreview(widgetStyle, today, upcoming)
+                }
             }
         }
 
         // Widget 3: Scrollable Agenda Preview
         item {
-            WidgetPreviewWrapper(
-                title = "Scrollbare Agenda-Liste (4×3)",
-                subtitle = "Kommende 30 Tage mit direktem Sync-Button & Schnell-Erstellung",
-                onPin = { pinWidget(AgendaListWidgetProvider::class.java, "Agenda-Liste") }
-            ) {
-                AgendaListPreview(widgetStyle, upcoming)
+            BouncyEntrance(delayIndex = 3) {
+                WidgetPreviewWrapper(
+                    title = "Scrollbare Agenda-Liste (4×3)",
+                    subtitle = "Kommende 30 Tage mit direktem Sync-Button & Schnell-Erstellung",
+                    onPin = { pinWidget(AgendaListWidgetProvider::class.java, "Agenda-Liste") }
+                ) {
+                    AgendaListPreview(widgetStyle, upcoming)
+                }
             }
         }
     }
@@ -298,13 +313,13 @@ private fun HonorMonthWidgetPreview(
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(monthTitle, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = fg, modifier = Modifier.weight(1f))
-                Text("‹   ›", color = Color(0xFF0A84FF), fontWeight = FontWeight.Bold)
+                Text("‹   ›", color = Color(0xFFFF4F38), fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.width(8.dp))
                 Box(
                     modifier = Modifier
                         .size(24.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFF0A84FF)),
+                        .background(Color(0xFFFF4F38)),
                     contentAlignment = Alignment.Center
                 ) {
                     Text("+", color = Color.White, fontWeight = FontWeight.Bold)
@@ -326,7 +341,7 @@ private fun HonorMonthWidgetPreview(
                                 modifier = Modifier
                                     .size(20.dp)
                                     .clip(CircleShape)
-                                    .background(if (isToday) Color(0xFF0A84FF) else Color.Transparent),
+                                    .background(if (isToday) Color(0xFFFF4F38) else Color.Transparent),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
@@ -430,7 +445,7 @@ private fun AgendaListPreview(
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("BttrCal · Agenda", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = fg, modifier = Modifier.weight(1f))
-                Text("Sync  +", color = Color(0xFF0A84FF), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                Text("Sync  +", color = Color(0xFFFF4F38), fontWeight = FontWeight.Bold, fontSize = 12.sp)
             }
             if (upcoming.isEmpty()) {
                 Text("Keine anstehenden Termine", fontSize = 12.sp, color = fg.copy(alpha = 0.6f))
@@ -559,6 +574,18 @@ private fun SplitMonthWidgetPreview(
             }
             Spacer(modifier = Modifier.width(10.dp))
             Column(modifier = Modifier.weight(0.55f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("ANSTEHEND", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = muted, modifier = Modifier.weight(1f))
+                    Box(
+                        modifier = Modifier
+                            .size(16.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFFF4F38)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("+", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    }
+                }
                 upcoming.take(3).forEach { occ ->
                     val s = Instant.ofEpochMilli(occ.occurrenceStartMillis).atZone(zone)
                     val e = Instant.ofEpochMilli(occ.occurrenceEndMillis).atZone(zone)

@@ -92,6 +92,7 @@ class SplitMonthWidgetProvider : AppWidgetProvider() {
         views.setTextViewText(R.id.split_day_label, dayShort)
         views.setTextColor(R.id.split_date_label, primaryText)
         views.setTextColor(R.id.split_day_label, mutedText)
+        views.setTextColor(R.id.split_upcoming_label, mutedText)
 
         val wdIds = intArrayOf(R.id.swd_0, R.id.swd_1, R.id.swd_2, R.id.swd_3, R.id.swd_4, R.id.swd_5, R.id.swd_6)
         for (i in 0 until 7) {
@@ -118,17 +119,35 @@ class SplitMonthWidgetProvider : AppWidgetProvider() {
                 views.setTextColor(dayId, if (inMonth) primaryText else outMonthText)
             }
 
-            if (dayEvents.isNotEmpty() && !isToday) {
+            if (dayEvents.isNotEmpty()) {
                 views.setTextViewText(dotId, "•")
-                views.setTextColor(dotId, if (isDark) Color.parseColor("#B8FFFFFF") else dayEvents.first().displayColorArgb)
+                views.setTextColor(
+                    dotId,
+                    if (isToday && isDark) Color.parseColor("#E6FFFFFF") else dayEvents.first().displayColorArgb
+                )
                 views.setViewVisibility(dotId, View.VISIBLE)
             } else {
                 views.setTextViewText(dotId, "")
                 views.setViewVisibility(dotId, View.INVISIBLE)
             }
+
+            val dayMillis = cellDate.atStartOfDay(zone).toInstant().toEpochMilli()
+            val cellIntent = Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                putExtra(MainActivity.EXTRA_OPEN_DATE_MILLIS, dayMillis)
+            }
+            views.setOnClickPendingIntent(
+                dayId,
+                PendingIntent.getActivity(
+                    context,
+                    6100 + i,
+                    cellIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+            )
         }
 
-        // Open calendar on tap of left column
+        // Open calendar on tap of left column header / background
         val todayStart = today.atStartOfDay(zone).toInstant().toEpochMilli()
         val openTodayIntent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -139,13 +158,29 @@ class SplitMonthWidgetProvider : AppWidgetProvider() {
             PendingIntent.getActivity(context, 6000, openTodayIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         )
 
-        // Upcoming 3 events from today start
+        val quickAddIntent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(MainActivity.EXTRA_QUICK_ADD, true)
+        }
+        views.setOnClickPendingIntent(
+            R.id.split_btn_add,
+            PendingIntent.getActivity(context, 6001, quickAddIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        )
+
+        // Upcoming 3 active/future events (filter out timed events from earlier today that already ended + deduplicate same-day titles)
+        val now = System.currentTimeMillis()
         val upcoming = app.repository.getOccurrencesInRange(
             rangeStartMillis = todayStart,
             rangeEndMillis = todayStart + 14L * 86_400_000L,
             onlyVisible = true,
             zoneId = zone
-        ).take(3)
+        )
+            .filter { occ -> occ.event.allDay || occ.occurrenceEndMillis > now }
+            .distinctBy { occ ->
+                val d = Instant.ofEpochMilli(occ.occurrenceStartMillis).atZone(zone).toLocalDate()
+                "${d}_${occ.event.title.trim().lowercase(Locale.GERMAN)}"
+            }
+            .take(3)
 
         val cardIds = intArrayOf(R.id.sev_card_0, R.id.sev_card_1, R.id.sev_card_2)
         val barIds = intArrayOf(R.id.sev_bar_0, R.id.sev_bar_1, R.id.sev_bar_2)

@@ -5,6 +5,8 @@ import com.bttrcal.app.data.local.BttrCalDatabase
 import com.bttrcal.app.data.local.PreferencesRepository
 import com.bttrcal.app.data.security.SecretVault
 import com.bttrcal.app.data.sync.SyncScheduler
+import com.bttrcal.app.domain.engine.DuplicateCluster
+import com.bttrcal.app.domain.engine.DuplicateDetector
 import com.bttrcal.app.domain.engine.IcsCodec
 import com.bttrcal.app.domain.engine.RecurrenceEngine
 import com.bttrcal.app.domain.model.CalendarAccount
@@ -163,6 +165,62 @@ class CalendarRepository(
         }
         refreshFromDatabase()
         onDataMutated()
+    }
+
+    suspend fun mergeDuplicateCluster(
+        cluster: DuplicateCluster,
+        targetCalendarId: String,
+        mergedTitle: String
+    ): CalendarEvent = withContext(Dispatchers.IO) {
+        val plan = DuplicateDetector.buildMergePlan(cluster, targetCalendarId, mergedTitle)
+        val calMap = database.getCalendars().associateBy { it.id }
+        var touchedExternal = false
+
+        // 1. Persist merged event in target calendar
+        val targetCal = calMap[plan.mergedEvent.calendarId]
+        val targetExternal = targetCal != null && targetCal.accountType != CalendarAccountType.LOCAL && !targetCal.isReadOnly
+        if (targetExternal) touchedExternal = true
+        val existingTarget = database.getEventById(plan.mergedEvent.id)
+        val nextState = when {
+            !targetExternal -> SyncState.SYNCED
+            existingTarget == null -> SyncState.PENDING_CREATE
+            existingTarget.syncState == SyncState.PENDING_CREATE -> SyncState.PENDING_CREATE
+            else -> SyncState.PENDING_UPDATE
+        }
+        val savedMerged = plan.mergedEvent.copy(
+            uid = plan.mergedEvent.uid.ifBlank { UUID.randomUUID().toString() },
+            syncState = nextState,
+            updatedAt = System.currentTimeMillis()
+        )
+        database.upsertEvent(savedMerged)
+
+        // 2. Delete all other duplicate events across calendars (respecting remote PENDING_DELETE)
+        for (dupId in plan.eventIdsToDelete) {
+            val dup = database.getEventById(dupId) ?: continue
+            val dupCal = calMap[dup.calendarId]
+            val needsRemoteDelete = dupCal != null &&
+                dupCal.accountType != CalendarAccountType.LOCAL &&
+                !dupCal.isReadOnly &&
+                (dup.androidEventId != null || dup.remoteId != null)
+            if (needsRemoteDelete) {
+                touchedExternal = true
+                database.upsertEvent(
+                    dup.copy(
+                        syncState = SyncState.PENDING_DELETE,
+                        updatedAt = System.currentTimeMillis()
+                    )
+                )
+            } else {
+                database.hardDeleteEvent(dupId)
+            }
+        }
+
+        refreshFromDatabase()
+        onDataMutated()
+        if (touchedExternal && preferences.settings.value.syncAfterEdit) {
+            SyncScheduler.triggerImmediateBackgroundSync(context)
+        }
+        savedMerged
     }
 
     suspend fun createLocalCalendar(name: String, colorArgb: Int): CalendarSource = withContext(Dispatchers.IO) {
